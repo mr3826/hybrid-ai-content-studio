@@ -1,0 +1,66 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local storage and runtime directories
+data/*
+!data/.gitkeep
+runtime/
+cache/
+tmp/
+exports/
+backups/
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-journal
+*.db-wal
+*.sqlite-wal
+*.db-shm
+*.sqlite-shm
+
+# Media files
+*.mp4
+*.mov
+*.wav
+*.mp3
+*.m4a
+*.webm
+*.avi
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Python / Virtualenvs
+.venv/
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Playwright / Testing
+playwright/.auth/
+test-results/
+playwright-report/
+
+# OS and Editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/

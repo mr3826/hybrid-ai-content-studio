@@ -1,0 +1,21 @@
+# Example Platform Launchers Configuration (V1 Manual Publishing)
+youtube:
+  channel_name: "Practical AI Studio"
+  channel_url: "https://www.youtube.com/@practical-ai-studio"
+  studio_url: "https://studio.youtube.com/"
+  upload_url: "https://studio.youtube.com/channel/upload"
+
+facebook:
+  page_name: "Practical AI Studio"
+  channel_url: "https://www.facebook.com/practicalaistudio"
+  publishing_url: "https://business.facebook.com/creatorstudio"
+
+instagram:
+  account_name: "@practical.ai.studio"
+  channel_url: "https://www.instagram.com/practical.ai.studio"
+  publishing_url: "https://www.instagram.com/"
+
+tiktok:
+  account_name: "@practicalaistudio"
+  channel_url: "https://www.tiktok.com/@practicalaistudio"
+  publishing_url: "https://www.tiktok.com/upload"

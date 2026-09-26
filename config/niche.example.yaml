@@ -1,0 +1,75 @@
+# Example Niche Profile Configuration
+id: primary
+name: "AI Engineering & Coding Automation"
+one_sentence_definition: "Practical AI coding agents, developer automation workflows, and local LLM tooling tested on production tasks."
+audience: "Software developers, technical founders, and automation engineers."
+audience_regions:
+  - "North America"
+  - "Europe"
+  - "Global Developer Community"
+
+primary_problems:
+  - "Agent benchmark claims do not match real-world coding performance."
+  - "High API costs and token limits for agentic workflows."
+  - "Difficulty integrating local LLMs with developer IDEs."
+  - "Maintaining deterministic control over non-deterministic models."
+
+allowed_topics:
+  - "coding agents"
+  - "local LLMs"
+  - "developer tools"
+  - "AI engineering"
+  - "IDE integrations"
+  - "evals and benchmarks"
+  - "workflow automation"
+
+adjacent_topics:
+  - "software architecture"
+  - "DevOps"
+  - "vector databases"
+  - "open source models"
+
+blocked_topics:
+  - "crypto/web3 trading"
+  - "general consumer gadgets"
+  - "passive income schemes"
+  - "clickbait AI news without code/tests"
+
+must_have_signals:
+  - "code repository"
+  - "reproducible benchmark"
+  - "documentation or paper"
+  - "practical tool release"
+
+negative_keywords:
+  - "get rich quick"
+  - "secret trick"
+  - "replaced all coders"
+  - "100x money"
+
+preferred_source_types:
+  - "github_releases"
+  - "engineering_blogs"
+  - "arxiv_papers"
+  - "curated_rss"
+
+content_pillars:
+  - id: "agent_benchmarks"
+    name: "Coding Agent Stress Tests"
+    description: "Real-world testing of Claude 3.7, Gemini 2.5, Qwen 2.5 Coder on dirty repos."
+  - id: "local_tooling"
+    name: "Local Models & Tooling"
+    description: "Ollama, vLLM, DeepSeek, and local inference benchmarks."
+  - id: "automation_recipes"
+    name: "Production Automation Recipes"
+    description: "End-to-end coding workflows that save 5+ hours/week."
+
+commercial_intent_topics:
+  - "developer productivity tools"
+  - "cloud GPU hosting"
+  - "IDE extensions"
+
+evergreen_topics:
+  - "how to set up local coding assistant"
+  - "evaluating LLM code quality"
+  - "building deterministic AI pipelines"

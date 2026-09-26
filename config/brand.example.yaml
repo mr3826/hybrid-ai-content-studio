@@ -1,0 +1,71 @@
+# Example Brand Profile Configuration
+brand_name: "Practical AI Studio"
+brand_promise: "Tested AI tools, automated workflows, and honest benchmarks without hype."
+audience: "Engineers, builders, and technical knowledge workers."
+
+tone:
+  - evidence-driven
+  - concise
+  - practical
+  - calm
+  - transparent
+
+voice_rules:
+  - "Show the terminal or interface; do not merely talk about it."
+  - "State costs, latency, and failure rates explicitly."
+  - "Never declare a tool 'game-changing' or 'revolutionary'."
+
+preferred_vocabulary:
+  - "workflow"
+  - "benchmark"
+  - "latency"
+  - "trade-off"
+  - "failure rate"
+  - "reproducible"
+
+avoid_vocabulary:
+  - "game-changer"
+  - "insane"
+  - "mind-blowing"
+  - "unbelievable"
+  - "passive income"
+
+banned_cliches:
+  - "In today's fast-paced world..."
+  - "Without further ado..."
+  - "Let's dive right in!"
+
+claim_rules:
+  - "Every speed or accuracy claim must cite a benchmark run or primary source."
+  - "Include pricing tiers and hidden API token limits."
+
+cta_style: "Direct, educational, and low-friction."
+humor_policy: "Subtle, dry, developer-oriented; never slapstick."
+controversy_policy: "Focus strictly on technical facts and empirical metrics."
+sponsor_policy: "Disclose all sponsorships immediately in intro; test tools rigorously regardless of sponsorship."
+affiliate_disclosure_style: "Clear, transparent note in description and video caption."
+
+visual_identity:
+  primary_font: "Inter"
+  secondary_font: "JetBrains Mono"
+  caption_style: "clean-mono-highlight"
+  logo_path: "assets/logo.png"
+  intro_rule: "First 3 seconds must show immediate result or problem demonstration."
+  outro_rule: "Max 5 seconds; clean CTA with link reference."
+  thumbnail_rules:
+    - "High contrast code or UI screenshot"
+    - "Under 5 words of text"
+    - "No exaggerated shock faces"
+
+platform_adaptations:
+  youtube:
+    description_template: "Code & reproduction steps: {link}\n\nTimestamps:\n{timestamps}"
+    default_tags: ["ai", "coding", "software engineering", "automation"]
+  facebook:
+    caption_prefix: "Engineers & builders: "
+  instagram:
+    hashtag_count: 5
+    caption_structure: "Hook -> 3 Takeaways -> Link in bio"
+  tiktok:
+    caption_limit: 150
+    on_screen_text_density: "medium"
