@@ -1,0 +1,23 @@
+id: reference
+name: Reference Benchmark Engine
+version: 1.0.0
+enabled: true
+description: Reference implementation demonstrating Engine contract compliance, rules validation, dry run, and explainability.
+
+inputs:
+  - BenchmarkSignal
+
+outputs:
+  - BenchmarkReport
+
+dependencies: []
+
+triggers:
+  - manual
+  - scheduled
+
+supports:
+  dry_run: true
+  explain: true
+  health_check: true
+  configure: true

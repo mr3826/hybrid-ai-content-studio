@@ -22,6 +22,11 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database initialized successfully (SQLite WAL).")
 
+    logger.info("Registering studio engine catalog...")
+    from app.engines.catalog import register_all_catalog_engines
+    register_all_catalog_engines()
+    logger.info("Engine catalog loaded successfully.")
+
     yield
 
     logger.info("Shutting down API server...")

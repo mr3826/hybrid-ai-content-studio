@@ -1,0 +1,5 @@
+version: 1.0.0
+thresholds:
+  min_metric_value: 10.0
+weights:
+  signal_strength: 0.6

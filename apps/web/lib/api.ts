@@ -226,3 +226,147 @@ export async function seedAllSettings(): Promise<StudioStatus> {
     method: "POST",
   });
 }
+
+// ==========================================
+// Feature Engines
+// ==========================================
+
+export interface EngineSummary {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  enabled: boolean;
+  inputs: string[];
+  outputs: string[];
+  dependencies: string[];
+  triggers: string[];
+  supports: Record<string, boolean>;
+  health: {
+    status: "healthy" | "degraded" | "failing";
+    message: string;
+    checked_at: string;
+    details: Record<string, any>;
+  };
+  last_run_at: string | null;
+  last_run_status: string | null;
+  total_runs_count: number;
+}
+
+export interface EngineRunRecord {
+  id: string;
+  engine_id: string;
+  engine_version: string;
+  run_id: string;
+  trigger: string;
+  status: string;
+  started_at: string;
+  ended_at: string;
+  duration_ms: number;
+  input_count: number;
+  output_count: number;
+  rejected_count: number;
+  error_count: number;
+  cost: number;
+  summary: string;
+  parameters: Record<string, any>;
+  errors: string[];
+  explanations: Array<Record<string, any>>;
+}
+
+export interface EngineDetail {
+  manifest: {
+    id: string;
+    name: string;
+    version: string;
+    description: string;
+    enabled: boolean;
+    inputs: string[];
+    outputs: string[];
+    dependencies: string[];
+    triggers: string[];
+    supports: Record<string, boolean>;
+  };
+  health: {
+    status: string;
+    message: string;
+    checked_at: string;
+    details: Record<string, any>;
+  };
+  rules: Record<string, any>;
+  total_runs_count: number;
+  last_run?: {
+    run_id: string;
+    status: string;
+    started_at: string;
+    summary: string;
+    duration_ms: number;
+  } | null;
+}
+
+export interface EngineResult {
+  engine_id: string;
+  engine_version: string;
+  run_id: string;
+  success: boolean;
+  started_at: string;
+  ended_at: string;
+  duration_ms: number;
+  input_count: number;
+  output_count: number;
+  rejected_count: number;
+  error_count: number;
+  cost: number;
+  summary: string;
+  outputs: any[];
+  errors: string[];
+  explanations: any[];
+}
+
+export interface EngineExplanation {
+  result_id: string;
+  summary: string;
+  factors: Array<Record<string, any>>;
+}
+
+export async function getEngines(): Promise<EngineSummary[]> {
+  return await request<EngineSummary[]>("/api/v1/engines", { cache: "no-store" });
+}
+
+export async function getEngineDetail(id: string): Promise<EngineDetail> {
+  return await request<EngineDetail>(`/api/v1/engines/${id}`, { cache: "no-store" });
+}
+
+export async function runEngine(id: string, params: Record<string, any> = {}): Promise<EngineResult> {
+  return await request<EngineResult>(`/api/v1/engines/${id}/run`, {
+    method: "POST",
+    body: JSON.stringify({ parameters: params }),
+  });
+}
+
+export async function dryRunEngine(id: string, params: Record<string, any> = {}): Promise<EngineResult> {
+  return await request<EngineResult>(`/api/v1/engines/${id}/dry-run`, {
+    method: "POST",
+    body: JSON.stringify({ parameters: params }),
+  });
+}
+
+export async function getEngineRules(id: string): Promise<Record<string, any>> {
+  return await request<Record<string, any>>(`/api/v1/engines/${id}/rules`, { cache: "no-store" });
+}
+
+export async function updateEngineRules(id: string, rules: Record<string, any>): Promise<Record<string, any>> {
+  return await request<Record<string, any>>(`/api/v1/engines/${id}/rules`, {
+    method: "PUT",
+    body: JSON.stringify({ rules }),
+  });
+}
+
+export async function getEngineRuns(id: string, limit: number = 20): Promise<EngineRunRecord[]> {
+  return await request<EngineRunRecord[]>(`/api/v1/engines/${id}/runs?limit=${limit}`, { cache: "no-store" });
+}
+
+export async function explainEngineResult(id: string, resultId: string): Promise<EngineExplanation> {
+  return await request<EngineExplanation>(`/api/v1/engines/${id}/explain/${resultId}`, { cache: "no-store" });
+}
+
