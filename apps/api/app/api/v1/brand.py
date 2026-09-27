@@ -6,6 +6,9 @@ from app.schemas.brand import (
     BrandExemplarBase,
     BrandExemplarCreate,
     BrandExemplarRead,
+    BrandMemoryBase,
+    BrandMemoryCreate,
+    BrandMemoryRead,
     BrandProfileBase,
     BrandProfileRead,
     BrandProfileUpdate,
@@ -85,3 +88,41 @@ async def delete_brand_exemplar(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Exemplar '{exemplar_id}' not found.",
         )
+
+
+@router.get("/memory", response_model=List[BrandMemoryRead])
+async def list_brand_memory(
+    memory_type: Optional[str] = Query(None, description="Filter by memory type (hook, cta, topic, etc.)"),
+    limit: int = Query(50, ge=1, le=200),
+    session: AsyncSession = Depends(get_db),
+):
+    """List persistent brand memory items ordered by recent usage."""
+    return await brand_service.list_brand_memory(session, memory_type=memory_type, limit=limit)
+
+
+@router.post(
+    "/memory",
+    response_model=BrandMemoryRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def record_brand_memory(
+    payload: BrandMemoryCreate,
+    session: AsyncSession = Depends(get_db),
+):
+    """Record a brand memory item or increment usage count."""
+    return await brand_service.record_brand_memory_item(session, payload)
+
+
+@router.delete("/memory/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_brand_memory(
+    item_id: str,
+    session: AsyncSession = Depends(get_db),
+):
+    """Delete a brand memory item by ID."""
+    deleted = await brand_service.delete_brand_memory_item(session, item_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Brand memory item '{item_id}' not found.",
+        )
+

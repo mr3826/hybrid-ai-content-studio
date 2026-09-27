@@ -48,6 +48,23 @@ class Settings(BaseSettings):
             return [i.strip() for i in v.split(",") if i.strip()]
         return v
 
+    @field_validator("DATABASE_URL", mode="after")
+    @classmethod
+    def anchor_database_url(cls, v: str) -> str:
+        if v.startswith("sqlite+aiosqlite:///") and not v.startswith("sqlite+aiosqlite:///:memory:"):
+            raw_path = v.replace("sqlite+aiosqlite:///", "")
+            path_obj = Path(raw_path)
+            if not path_obj.is_absolute():
+                # Find repo root
+                root = Path(__file__).resolve()
+                for p in root.parents:
+                    if (p / "apps").exists() and (p / "docs").exists():
+                        root = p
+                        break
+                abs_db = (root / raw_path).resolve()
+                return f"sqlite+aiosqlite:///{abs_db.as_posix()}"
+        return v
+
     @property
     def storage_path(self) -> Path:
         return Path(self.STORAGE_BASE_DIR)

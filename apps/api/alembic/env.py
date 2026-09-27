@@ -24,10 +24,12 @@ def get_db_url(async_driver: bool = True) -> str:
     if url.startswith("sqlite"):
         db_part = url.split(":///")[-1]
         if db_part and not db_part.startswith(":memory:"):
-            db_file = (ROOT_DIR / db_part).resolve()
-            db_file.parent.mkdir(parents=True, exist_ok=True)
+            path_obj = Path(db_part)
+            if not path_obj.is_absolute():
+                path_obj = (ROOT_DIR / db_part).resolve()
+            path_obj.parent.mkdir(parents=True, exist_ok=True)
             driver = "sqlite+aiosqlite" if async_driver else "sqlite"
-            return f"{driver}:///{db_file.as_posix()}"
+            return f"{driver}:///{path_obj.as_posix()}"
     return url if async_driver else url.replace("+aiosqlite", "")
 
 

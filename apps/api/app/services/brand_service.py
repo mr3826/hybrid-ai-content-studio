@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 import yaml
@@ -6,12 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.brand import (
     BrandExemplar,
+    BrandMemoryItem,
     BrandProfile,
     SINGLETON_BRAND_ID,
 )
 from app.schemas.brand import (
     BrandExemplarBase,
     BrandExemplarCreate,
+    BrandMemoryBase,
+    BrandMemoryCreate,
     BrandProfileBase,
     BrandProfileCreate,
     BrandProfileUpdate,
@@ -89,3 +93,67 @@ async def delete_exemplar(session: AsyncSession, exemplar_id: str) -> bool:
     await session.delete(item)
     await session.commit()
     return True
+
+
+async def list_brand_memory(
+    session: AsyncSession,
+    memory_type: Optional[str] = None,
+    limit: int = 50,
+) -> List[BrandMemoryItem]:
+    """Retrieve brand memory items ordered by recent usage."""
+    stmt = select(BrandMemoryItem)
+    if memory_type:
+        stmt = stmt.where(BrandMemoryItem.memory_type == memory_type)
+    stmt = stmt.order_by(BrandMemoryItem.last_used_at.desc()).limit(limit)
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def record_brand_memory_item(
+    session: AsyncSession,
+    data: BrandMemoryBase,
+) -> BrandMemoryItem:
+    """Record a memory item (hook, CTA, topic, etc.) or increment usage if existing."""
+    stmt = (
+        select(BrandMemoryItem)
+        .where(BrandMemoryItem.memory_type == data.memory_type)
+        .where(BrandMemoryItem.content == data.content.strip())
+    )
+    res = await session.execute(stmt)
+    existing = res.scalar_one_or_none()
+
+    if existing:
+        existing.usage_count += 1
+        existing.last_used_at = datetime.now(timezone.utc)
+        if data.context_note:
+            existing.context_note = data.context_note
+        await session.commit()
+        await session.refresh(existing)
+        return existing
+
+    item = BrandMemoryItem(
+        memory_type=data.memory_type,
+        content=data.content.strip(),
+        context_note=data.context_note,
+        usage_count=data.usage_count,
+        last_used_at=datetime.now(timezone.utc),
+    )
+    session.add(item)
+    await session.commit()
+    await session.refresh(item)
+    return item
+
+
+async def delete_brand_memory_item(
+    session: AsyncSession,
+    item_id: str,
+) -> bool:
+    stmt = select(BrandMemoryItem).where(BrandMemoryItem.id == item_id)
+    res = await session.execute(stmt)
+    item = res.scalar_one_or_none()
+    if not item:
+        return False
+    await session.delete(item)
+    await session.commit()
+    return True
+

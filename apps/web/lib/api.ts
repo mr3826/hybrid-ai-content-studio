@@ -60,10 +60,23 @@ export interface BrandProfile {
   controversy_policy: string;
   sponsor_policy: string;
   affiliate_disclosure_style: string;
+  default_lead_magnet?: string | null;
+  newsletter_cta?: string | null;
+  digital_product_cta?: string | null;
   visual_identity: Record<string, any>;
   platform_adaptations: Record<string, any>;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface BrandMemoryItem {
+  id: string;
+  memory_type: string;
+  content: string;
+  context_metadata?: Record<string, any>;
+  usage_count: number;
+  last_used_at: string;
+  created_at: string;
 }
 
 export interface BrandExemplar {
@@ -187,6 +200,29 @@ export async function createBrandExemplar(data: Partial<BrandExemplar>): Promise
 
 export async function deleteBrandExemplar(id: string): Promise<void> {
   await request<void>(`/api/v1/brand/exemplars/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// Brand Memory
+export async function getBrandMemory(memory_type?: string): Promise<BrandMemoryItem[]> {
+  const q = memory_type ? `?memory_type=${encodeURIComponent(memory_type)}` : "";
+  return await request<BrandMemoryItem[]>(`/api/v1/brand/memory${q}`, { cache: "no-store" });
+}
+
+export async function recordBrandMemory(data: {
+  memory_type: string;
+  content: string;
+  context_metadata?: Record<string, any>;
+}): Promise<BrandMemoryItem> {
+  return await request<BrandMemoryItem>("/api/v1/brand/memory", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteBrandMemory(id: string): Promise<void> {
+  await request<void>(`/api/v1/brand/memory/${id}`, {
     method: "DELETE",
   });
 }

@@ -31,6 +31,11 @@ class BrandProfileBase(BaseModel):
     sponsor_policy: str = ""
     affiliate_disclosure_style: str = ""
 
+    # Monetization Metadata
+    default_lead_magnet: str = ""
+    newsletter_cta: str = ""
+    digital_product_cta: str = ""
+
     visual_identity: Dict[str, Any] = Field(default_factory=dict)
     platform_adaptations: Dict[str, Any] = Field(default_factory=dict)
 
@@ -72,3 +77,27 @@ class BrandExemplarRead(BrandExemplarBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class BrandMemoryBase(BaseModel):
+    memory_type: str = Field(
+        ...,
+        description="hook, cta, topic, tested_product, conclusion, visual_pattern, frequent_phrase, thumbnail_wording",
+    )
+    content: str = Field(..., min_length=2)
+    context_note: Optional[str] = None
+    usage_count: int = 1
+
+
+class BrandMemoryCreate(BrandMemoryBase):
+    pass
+
+
+class BrandMemoryRead(BrandMemoryBase):
+    id: str
+    last_used_at: datetime
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+

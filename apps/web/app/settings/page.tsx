@@ -13,7 +13,8 @@ import {
   Trash2, 
   CheckCircle, 
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Brain
 } from "lucide-react";
 import {
   getNiche,
@@ -25,6 +26,9 @@ import {
   getBrandExemplars,
   createBrandExemplar,
   deleteBrandExemplar,
+  getBrandMemory,
+  recordBrandMemory,
+  deleteBrandMemory,
   getPlatforms,
   updatePlatform,
   seedPlatforms,
@@ -34,10 +38,11 @@ import {
   NicheProfile,
   BrandProfile,
   BrandExemplar,
+  BrandMemoryItem,
   PlatformSetting
 } from "@/lib/api";
 
-type Tab = "niche" | "brand" | "exemplars" | "platforms" | "transfer";
+type Tab = "niche" | "brand" | "memory" | "exemplars" | "platforms" | "transfer";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("niche");
@@ -79,8 +84,19 @@ export default function SettingsPage() {
     controversy_policy: "",
     sponsor_policy: "",
     affiliate_disclosure_style: "",
+    default_lead_magnet: "",
+    newsletter_cta: "",
+    digital_product_cta: "",
     visual_identity: {},
     platform_adaptations: {},
+  });
+
+  // Brand Memory State
+  const [memoryItems, setMemoryItems] = useState<BrandMemoryItem[]>([]);
+  const [memoryFilter, setMemoryFilter] = useState<string>("all");
+  const [newMemory, setNewMemory] = useState({
+    memory_type: "hook",
+    content: "",
   });
 
   // Exemplars State
@@ -102,17 +118,19 @@ export default function SettingsPage() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [nData, bData, exData, pData] = await Promise.all([
+      const [nData, bData, exData, pData, mData] = await Promise.all([
         getNiche(),
         getBrand(),
         getBrandExemplars(),
         getPlatforms(),
+        getBrandMemory(),
       ]);
 
       if (nData) setNiche(nData);
       if (bData) setBrand(bData);
       if (exData) setExemplars(exData);
       if (pData) setPlatforms(pData);
+      if (mData) setMemoryItems(mData);
     } catch (e) {
       console.error("Error loading settings:", e);
     } finally {
@@ -213,6 +231,39 @@ export default function SettingsPage() {
       showToast("success", "Brand Exemplar deleted.");
     } catch (e: any) {
       showToast("error", e.message || "Failed to delete Exemplar");
+    }
+  };
+
+  // Brand Memory Handlers
+  const handleAddMemory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMemory.content.trim()) return;
+    setSaving(true);
+    try {
+      const created = await recordBrandMemory({
+        memory_type: newMemory.memory_type,
+        content: newMemory.content.trim(),
+      });
+      setMemoryItems([created, ...memoryItems.filter((m) => m.id !== created.id)]);
+      setNewMemory({
+        memory_type: "hook",
+        content: "",
+      });
+      showToast("success", "Brand memory recorded successfully!");
+    } catch (e: any) {
+      showToast("error", e.message || "Failed to record Brand Memory");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteMemory = async (id: string) => {
+    try {
+      await deleteBrandMemory(id);
+      setMemoryItems(memoryItems.filter((m) => m.id !== id));
+      showToast("success", "Brand memory item removed.");
+    } catch (e: any) {
+      showToast("error", e.message || "Failed to remove Brand Memory item");
     }
   };
 
@@ -377,6 +428,18 @@ export default function SettingsPage() {
         >
           <Layers className="w-4 h-4" />
           Brand DNA
+        </button>
+
+        <button
+          onClick={() => setActiveTab("memory")}
+          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${
+            activeTab === "memory"
+              ? "bg-indigo-600 text-white"
+              : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+          }`}
+        >
+          <Brain className="w-4 h-4" />
+          Brand Memory ({memoryItems.length})
         </button>
 
         <button
@@ -712,6 +775,184 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
+          </div>
+
+          {/* Monetization & Conversion CTAs */}
+          <div className="border-t border-slate-800 pt-6">
+            <h3 className="text-sm font-semibold text-white mb-1">Monetization & Conversion CTAs</h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Configured lead magnets, newsletter hooks, and digital product CTAs automatically available to content engines.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                  Default Lead Magnet CTA
+                </label>
+                <input
+                  type="text"
+                  value={brand.default_lead_magnet || ""}
+                  onChange={(e) => setBrand({ ...brand, default_lead_magnet: e.target.value })}
+                  placeholder="e.g. Free Local AI Architecture Guide (local-ai.guide)"
+                  className="w-full px-3 py-2 text-sm rounded-lg bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                  Newsletter CTA
+                </label>
+                <input
+                  type="text"
+                  value={brand.newsletter_cta || ""}
+                  onChange={(e) => setBrand({ ...brand, newsletter_cta: e.target.value })}
+                  placeholder="e.g. Subscribe to the Fresh AI Weekly Brief for benchmark datasets"
+                  className="w-full px-3 py-2 text-sm rounded-lg bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                  Digital Product CTA
+                </label>
+                <input
+                  type="text"
+                  value={brand.digital_product_cta || ""}
+                  onChange={(e) => setBrand({ ...brand, digital_product_cta: e.target.value })}
+                  placeholder="e.g. Download the Complete Local Studio Starter Kit ($49)"
+                  className="w-full px-3 py-2 text-sm rounded-lg bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Brand Memory & Repetition */}
+      {activeTab === "memory" && (
+        <div className="space-y-6">
+          {/* Header & Add Memory Form */}
+          <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800">
+            <h2 className="text-base font-semibold text-white mb-1">Record Brand Memory</h2>
+            <p className="text-xs text-slate-400 mb-4">
+              Persistent memory store for hooks, CTAs, topics, tested products, and conclusions. Brand QA queries this memory to prevent repetition and ensure brand continuity.
+            </p>
+
+            <form onSubmit={handleAddMemory} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                    Memory Type
+                  </label>
+                  <select
+                    value={newMemory.memory_type}
+                    onChange={(e) => setNewMemory({ ...newMemory, memory_type: e.target.value })}
+                    className="w-full px-3 py-2 text-sm rounded-lg bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="hook">Hook</option>
+                    <option value="cta">CTA</option>
+                    <option value="topic">Topic</option>
+                    <option value="tested_product">Tested Product</option>
+                    <option value="conclusion">Conclusion</option>
+                    <option value="visual_pattern">Visual Pattern</option>
+                    <option value="frequent_phrase">Frequent Phrase</option>
+                    <option value="thumbnail_wording">Thumbnail Wording</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-3">
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                    Content / Pattern
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newMemory.content}
+                      onChange={(e) => setNewMemory({ ...newMemory, content: e.target.value })}
+                      placeholder="e.g. Stop paying OpenAI for batch summarization when Ollama 3.1 is 10x faster."
+                      className="flex-1 px-3 py-2 text-sm rounded-lg bg-slate-950 border border-slate-800 text-white focus:outline-none focus:border-indigo-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={saving || !newMemory.content.trim()}
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white whitespace-nowrap"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add to Memory
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          {/* Filter Chips */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+            {[
+              { id: "all", label: "All Items" },
+              { id: "hook", label: "Hooks" },
+              { id: "cta", label: "CTAs" },
+              { id: "topic", label: "Topics" },
+              { id: "tested_product", label: "Tested Products" },
+              { id: "conclusion", label: "Conclusions" },
+              { id: "visual_pattern", label: "Visuals" },
+              { id: "frequent_phrase", label: "Phrases" },
+              { id: "thumbnail_wording", label: "Thumbnails" },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setMemoryFilter(f.id)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors whitespace-nowrap ${
+                  memoryFilter === f.id
+                    ? "bg-indigo-600 text-white"
+                    : "bg-slate-900 text-slate-400 border border-slate-800 hover:text-white"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Memory Items List */}
+          <div className="space-y-3">
+            {memoryItems
+              .filter((m) => memoryFilter === "all" || m.memory_type === memoryFilter)
+              .length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-400 bg-slate-900/40 rounded-2xl border border-slate-800">
+                No brand memory recorded in this category yet. Memory items are automatically recorded upon script approval or manually above.
+              </div>
+            ) : (
+              memoryItems
+                .filter((m) => memoryFilter === "all" || m.memory_type === memoryFilter)
+                .map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex items-start justify-between gap-4"
+                  >
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded bg-indigo-950 text-indigo-400 border border-indigo-800">
+                          {item.memory_type.replace("_", " ")}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          Used {item.usage_count} {item.usage_count === 1 ? "time" : "times"}
+                        </span>
+                        <span className="text-[11px] text-slate-400">
+                          • Last used: {new Date(item.last_used_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-slate-200">{item.content}</p>
+                    </div>
+
+                    <button
+                      onClick={() => handleDeleteMemory(item.id)}
+                      className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-950/30 rounded-lg transition-colors"
+                      title="Delete Memory Item"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))
+            )}
           </div>
         </div>
       )}
