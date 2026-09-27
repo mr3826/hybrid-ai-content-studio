@@ -14,7 +14,7 @@
 | **Phase 8** | Evidence / Provenance Engine | PASS | `8583cef` | 89 pytest passed, web build passed | Provenance graph, claims classification, coverage gate, and empirical experiments |
 | **Phase 9** | Pluggable AI Provider Engine | PASS | `b436047` | 104 pytest passed, web build passed | Gemini primary, Qwen fallback, mock adapters, telemetry & token cost tracking |
 | **Phase 10** | Originality & Experiment Workspace | PASS | `4ec72b5` | 116 pytest passed, web build passed | "What are WE adding?" gate, 12 originality formats, generic summary quarantine, experiment workspace & evidence link |
-| **Phase 11** | Content Family Engine | PASS | `TBD` | 127 pytest passed, web build passed | Parent-child Content Family architecture, evidence selection bridge, originality inheritance, amortized economics, and Creator Cockpit integration |
+| **Phase 11** | Content Family Engine | PASS | `3a05052` | 127 pytest passed, web build passed | Parent-child Content Family architecture, evidence selection bridge, originality inheritance, amortized economics, and Creator Cockpit integration |
 | **Phase 12** | Evidence-Driven Content & Script Studio | NOT_STARTED | - | - | Prerequisite: Phase 11 pass |
 | **Phase 13** | Export & Publishing Assistant | NOT_STARTED | - | - | Prerequisite: Phase 12 pass |
 | **Validation Gate** | Real-World Content Validation Gate | NOT_STARTED | - | - | Prerequisite: Phase 13 pass |
