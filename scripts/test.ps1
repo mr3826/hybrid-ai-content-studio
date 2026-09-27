@@ -6,8 +6,8 @@ Write-Host " Running Content Studio Test Suite                     " -Foreground
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 # 1. Run Python pytest
-Write-Host "[1/2] Running Backend & Worker unit tests with pytest..." -ForegroundColor Yellow
-uv run pytest apps/api/tests worker/tests -v
+Write-Host "[1/2] Running Backend, Engine & Worker unit tests with pytest..." -ForegroundColor Yellow
+uv run pytest apps/api/tests apps/api/app/engines worker/tests -v
 
 # 2. Run Next.js build validation
 Write-Host "[2/2] Running Frontend build & TypeScript validation..." -ForegroundColor Yellow

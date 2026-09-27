@@ -1,0 +1,23 @@
+id: niche_guard
+name: Niche Guard Engine
+version: 1.0.0
+enabled: true
+description: Deterministic keyword, topic taxonomy, and negative signal filtering against the single active niche profile.
+
+inputs:
+  - NicheGuardInput
+
+outputs:
+  - NicheGuardVerdict
+
+dependencies: []
+
+triggers:
+  - manual
+  - internal
+
+supports:
+  dry_run: true
+  explain: true
+  health_check: true
+  configure: true

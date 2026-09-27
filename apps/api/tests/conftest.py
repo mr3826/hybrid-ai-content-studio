@@ -10,6 +10,8 @@ from app.models.base import Base
 async def setup_test_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    from app.engines.catalog import register_all_catalog_engines
+    register_all_catalog_engines()
     yield
     # Keep database tables for inspection or teardown
 

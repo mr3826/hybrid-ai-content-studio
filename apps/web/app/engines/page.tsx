@@ -26,6 +26,7 @@ import {
   EngineRunRecord,
   EngineResult
 } from "@/lib/api";
+import EngineTesterModal from "@/components/EngineTesterModal";
 
 export default function EnginesPage() {
   const [engines, setEngines] = useState<EngineSummary[]>([]);
@@ -42,6 +43,15 @@ export default function EnginesPage() {
   const [logsModalOpen, setLogsModalOpen] = useState(false);
   const [runs, setRuns] = useState<EngineRunRecord[]>([]);
   const [loadingRuns, setLoadingRuns] = useState(false);
+
+  // Interactive Tester modal state
+  const [testerOpen, setTesterOpen] = useState(false);
+  const [testerEngineId, setTesterEngineId] = useState<"niche_guard" | "brand">("niche_guard");
+
+  const handleOpenTester = (engineId: "niche_guard" | "brand") => {
+    setTesterEngineId(engineId);
+    setTesterOpen(true);
+  };
 
   const loadEngines = async () => {
     setLoading(true);
@@ -298,6 +308,17 @@ export default function EnginesPage() {
                 </div>
 
                 <div className="flex items-center gap-1.5">
+                  {(eng.id === "niche_guard" || eng.id === "brand") && (
+                    <button
+                      onClick={() => handleOpenTester(eng.id as "niche_guard" | "brand")}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 transition-colors shadow-sm"
+                      title="Open interactive quality gate tester"
+                    >
+                      <Sparkles className="w-3 h-3 text-indigo-400" />
+                      <span>Test</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={() => handleOpenRules(eng)}
                     className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
@@ -463,6 +484,14 @@ export default function EnginesPage() {
           </div>
         </div>
       )}
+
+      {/* Interactive Quality Gate Tester Modal */}
+      <EngineTesterModal
+        isOpen={testerOpen}
+        onClose={() => setTesterOpen(false)}
+        engineId={testerEngineId}
+        engineName={testerEngineId === "niche_guard" ? "Niche Guard Engine" : "Brand Engine"}
+      />
     </div>
   );
 }

@@ -370,3 +370,86 @@ export async function explainEngineResult(id: string, resultId: string): Promise
   return await request<EngineExplanation>(`/api/v1/engines/${id}/explain/${resultId}`, { cache: "no-store" });
 }
 
+// Niche Guard & Brand QA Evaluation Contracts
+export interface NicheGuardInput {
+  id?: string;
+  title: string;
+  text: string;
+  tags?: string[];
+  url?: string;
+}
+
+export interface NicheGuardFactor {
+  criterion: string;
+  points: number;
+  detail: string;
+  matched_items: string[];
+}
+
+export interface NicheGuardVerdict {
+  id: string;
+  input_id?: string;
+  passed: boolean;
+  score: number;
+  reason: string;
+  pillar_matches: string[];
+  matched_allowed_topics: string[];
+  matched_adjacent_topics: string[];
+  matched_must_have_signals: string[];
+  matched_negative_keywords: string[];
+  blocked_topics_detected: string[];
+  factors: NicheGuardFactor[];
+  evaluated_at: string;
+}
+
+export interface BrandViolation {
+  rule_type: string;
+  severity: "critical" | "warning" | "suggestion";
+  matched_phrase: string;
+  message: string;
+  suggestion: string;
+}
+
+export interface BrandQAInput {
+  id?: string;
+  title?: string;
+  body: string;
+  hook?: string;
+  cta?: string;
+  platform?: string;
+}
+
+export interface BrandQAVerdict {
+  id: string;
+  input_id?: string;
+  on_brand: boolean;
+  overall_score: number;
+  tone_score: number;
+  vocabulary_score: number;
+  cliche_score: number;
+  claim_score: number;
+  repetition_score: number;
+  violations: BrandViolation[];
+  matched_preferred_words: string[];
+  matched_avoid_words: string[];
+  matched_cliches: string[];
+  suggested_fixes: string[];
+  exemplar_matches: Array<Record<string, any>>;
+  factors: Array<Record<string, any>>;
+  evaluated_at: string;
+}
+
+export async function evaluateNicheGuard(payload: NicheGuardInput): Promise<NicheGuardVerdict> {
+  return await request<NicheGuardVerdict>("/api/v1/niche-guard/evaluate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function evaluateBrandQA(payload: BrandQAInput): Promise<BrandQAVerdict> {
+  return await request<BrandQAVerdict>("/api/v1/brand-qa/evaluate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+

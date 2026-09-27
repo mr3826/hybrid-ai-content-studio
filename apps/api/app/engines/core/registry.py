@@ -16,8 +16,8 @@ class EngineRegistry:
     def __init__(self):
         self._engines: Dict[str, BaseEngine] = {}
 
-    def register(self, engine: BaseEngine) -> None:
-        if engine.id in self._engines:
+    def register(self, engine: BaseEngine, replace: bool = False) -> None:
+        if engine.id in self._engines and not replace:
             raise ValueError(f"Engine '{engine.id}' is already registered.")
         engine.validate_config()
         self._engines[engine.id] = engine

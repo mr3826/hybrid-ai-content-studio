@@ -1,0 +1,23 @@
+id: brand
+name: Brand Engine
+version: 1.0.0
+enabled: true
+description: Enforces single brand identity, voice, tone, banned clichés, avoid-vocabulary, claim verification, and exemplar alignment.
+
+inputs:
+  - BrandQAInput
+
+outputs:
+  - BrandQAVerdict
+
+dependencies: []
+
+triggers:
+  - manual
+  - internal
+
+supports:
+  dry_run: true
+  explain: true
+  health_check: true
+  configure: true
