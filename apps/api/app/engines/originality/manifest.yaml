@@ -1,0 +1,19 @@
+id: "originality"
+name: "Originality Engine"
+version: "1.0.0"
+description: "Enforces channel contribution (test, benchmark, tutorial, failure analysis) and blocks generic summaries."
+enabled: true
+inputs:
+  - "OpportunityScore"
+  - "ResearchPacket"
+outputs:
+  - "OriginalityPlan"
+  - "ExperimentRecord"
+dependencies: []
+triggers:
+  - "manual"
+supports:
+  dry_run: true
+  explain: true
+  health_check: true
+  configure: true

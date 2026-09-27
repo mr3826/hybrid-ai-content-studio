@@ -19,6 +19,7 @@ from app.models.evidence import (
     ContentClaim,
 )
 from app.models.ai import AIInvocationLog
+from app.models.originality import OriginalityPlan, ExperimentAttachment
 
 __all__ = [
     "Base",
@@ -50,4 +51,6 @@ __all__ = [
     "Conclusion",
     "ContentClaim",
     "AIInvocationLog",
+    "OriginalityPlan",
+    "ExperimentAttachment",
 ]

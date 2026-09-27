@@ -1,0 +1,26 @@
+version: "1.0.0"
+require_what_are_we_adding: true
+block_generic_summary: true
+min_what_we_add_length: 15
+default_confidence_threshold: 70.0
+supported_originality_types:
+  - "tool_test"
+  - "benchmark"
+  - "cost_comparison"
+  - "workflow_demonstration"
+  - "before_after"
+  - "implementation_attempt"
+  - "multi_source_synthesis"
+  - "original_framework"
+  - "original_chart_data_analysis"
+  - "practical_tutorial"
+  - "failure_analysis"
+  - "clearly_labeled_opinion"
+generic_summary_indicators:
+  - "summary of the article"
+  - "news summary"
+  - "general overview"
+  - "recap of news"
+  - "just summarizing"
+  - "generic summary"
+  - "aggregation of headlines"

@@ -1524,6 +1524,240 @@ export async function getAIAnalytics(days: number = 30): Promise<AIAnalyticsSumm
   return await request<AIAnalyticsSummary>(`/api/v1/ai/analytics?days=${days}`);
 }
 
+// ---------------------------------------------------------------------------
+// Originality & Experiment Workspace (Phase 10)
+// ---------------------------------------------------------------------------
+
+export interface OriginalityFormat {
+  type: string;
+  title: string;
+  description: string;
+}
+
+export interface OriginalityAngle {
+  originality_type: string;
+  what_are_we_adding: string;
+  why_it_matters: string;
+  suggested_experiments: Array<{ title: string; method: string }>;
+}
+
+export interface ExperimentAttachment {
+  id: string;
+  experiment_id?: string;
+  attachment_type: string;
+  filename: string;
+  file_path: string;
+  mime_type: string;
+  size_bytes: number;
+  content_snippet?: string;
+  caption?: string;
+  created_at?: string;
+}
+
+export interface ExperimentConclusion {
+  id: string;
+  summary: string;
+  confidence: number;
+  claim_id?: string;
+}
+
+export interface ExperimentItem {
+  id: string;
+  title: string;
+  question?: string;
+  hypothesis: string;
+  method: string;
+  dataset_sample?: string;
+  tools_models: string[];
+  parameters?: Record<string, any>;
+  results?: Record<string, any>;
+  failures: string[];
+  latency_ms?: number;
+  cost_usd?: number;
+  notes?: string;
+  conclusion?: string;
+  status: string;
+  opportunity_id?: string;
+  originality_plan_id?: string;
+  attachment_count?: number;
+  attachments?: ExperimentAttachment[];
+  conclusions?: ExperimentConclusion[];
+  created_at?: string;
+}
+
+export interface OriginalityPlan {
+  id: string;
+  topic: string;
+  slug: string;
+  originality_type: string;
+  what_are_we_adding: string;
+  why_it_matters?: string;
+  status: string;
+  is_generic_summary: boolean;
+  confidence_score: number;
+  opportunity_id?: string;
+  packet_id?: string;
+  reviewed_by?: string;
+  review_notes?: string;
+  reviewed_at?: string;
+  suggested_experiments?: Array<Record<string, any>>;
+  experiments?: ExperimentItem[];
+  created_at?: string;
+}
+
+export async function getOriginalityHealth(): Promise<{ status: string; engine_id: string }> {
+  return await request<{ status: string; engine_id: string }>("/api/v1/originality/health");
+}
+
+export async function getOriginalityFormats(): Promise<{ formats: OriginalityFormat[]; count: number }> {
+  return await request<{ formats: OriginalityFormat[]; count: number }>("/api/v1/originality/formats");
+}
+
+export async function proposeOriginalAngles(
+  topic: string,
+  summary: string = ""
+): Promise<{ topic: string; angles: OriginalityAngle[] }> {
+  return await request<{ topic: string; angles: OriginalityAngle[] }>("/api/v1/originality/propose-angles", {
+    method: "POST",
+    body: JSON.stringify({ topic, summary }),
+  });
+}
+
+export async function createOriginalityPlan(payload: {
+  topic: string;
+  originality_type: string;
+  what_are_we_adding: string;
+  why_it_matters?: string;
+  opportunity_id?: string;
+  packet_id?: string;
+  suggested_experiments?: any[];
+}): Promise<OriginalityPlan> {
+  return await request<OriginalityPlan>("/api/v1/originality/plans", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listOriginalityPlans(params?: {
+  status?: string;
+  originality_type?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<OriginalityPlan[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.originality_type) searchParams.set("originality_type", params.originality_type);
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+  if (params?.offset) searchParams.set("offset", params.offset.toString());
+  const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return await request<OriginalityPlan[]>(`/api/v1/originality/plans${qs}`);
+}
+
+export async function getOriginalityPlan(id: string): Promise<OriginalityPlan> {
+  return await request<OriginalityPlan>(`/api/v1/originality/plans/${id}`);
+}
+
+export async function approveOriginalityPlan(
+  id: string,
+  payload?: { reviewer?: string; notes?: string }
+): Promise<{ id: string; status: string; reviewed_by: string; review_notes?: string }> {
+  return await request<{ id: string; status: string; reviewed_by: string; review_notes?: string }>(
+    `/api/v1/originality/plans/${id}/approve`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload || {}),
+    }
+  );
+}
+
+export async function rejectOriginalityPlan(
+  id: string,
+  reason: string
+): Promise<{ id: string; status: string; review_notes: string }> {
+  return await request<{ id: string; status: string; review_notes: string }>(
+    `/api/v1/originality/plans/${id}/reject`,
+    {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }
+  );
+}
+
+export async function createWorkspaceExperiment(payload: {
+  title: string;
+  hypothesis: string;
+  method: string;
+  question?: string;
+  dataset_sample?: string;
+  tools_models?: string[];
+  parameters?: Record<string, any>;
+  results?: Record<string, any>;
+  failures?: string[];
+  latency_ms?: number;
+  cost_usd?: number;
+  notes?: string;
+  conclusion?: string;
+  status?: string;
+  opportunity_id?: string;
+  originality_plan_id?: string;
+}): Promise<ExperimentItem> {
+  return await request<ExperimentItem>("/api/v1/originality/experiments", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listWorkspaceExperiments(params?: {
+  opportunity_id?: string;
+  originality_plan_id?: string;
+  status?: string;
+  limit?: number;
+}): Promise<ExperimentItem[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.opportunity_id) searchParams.set("opportunity_id", params.opportunity_id);
+  if (params?.originality_plan_id) searchParams.set("originality_plan_id", params.originality_plan_id);
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+  const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return await request<ExperimentItem[]>(`/api/v1/originality/experiments${qs}`);
+}
+
+export async function getWorkspaceExperiment(id: string): Promise<ExperimentItem> {
+  return await request<ExperimentItem>(`/api/v1/originality/experiments/${id}`);
+}
+
+export async function addExperimentAttachment(
+  id: string,
+  payload: {
+    attachment_type: string;
+    filename: string;
+    file_path: string;
+    mime_type?: string;
+    size_bytes?: number;
+    content_snippet?: string;
+    caption?: string;
+  }
+): Promise<ExperimentAttachment> {
+  return await request<ExperimentAttachment>(`/api/v1/originality/experiments/${id}/attachments`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function linkExperimentEvidence(
+  id: string,
+  payload: {
+    conclusion_text: string;
+    claim_id?: string;
+    confidence?: number;
+  }
+): Promise<ExperimentConclusion> {
+  return await request<ExperimentConclusion>(`/api/v1/originality/experiments/${id}/link-evidence`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 
 
 
