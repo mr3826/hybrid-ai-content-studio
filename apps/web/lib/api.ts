@@ -1373,5 +1373,157 @@ export async function overrideContentClaim(
   });
 }
 
+// ---------------------------------------------------------------------------
+// AI Provider Engine Contracts & APIs (Phase 9)
+// ---------------------------------------------------------------------------
+
+export interface AIProviderStatus {
+  mock_mode: boolean;
+  primary_provider: string;
+  primary_configured: boolean;
+  primary_model: string;
+  fallback_provider: string;
+  fallback_configured: boolean;
+  fallback_model: string;
+  fallback_enabled: boolean;
+  daily_spend_today: number;
+  daily_budget_limit: number;
+  budget_exceeded: boolean;
+}
+
+export interface AIResponse {
+  text: string;
+  structured_data?: any;
+  provider: string;
+  model: string;
+  task: string;
+  prompt_version?: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  cost: number;
+  latency_ms: number;
+  success: boolean;
+  error_message?: string;
+  fallback_used: boolean;
+  fallback_reason?: string;
+  primary_provider?: string;
+  primary_error?: string;
+}
+
+export interface AIInvocationLog {
+  id: string;
+  provider: string;
+  model: string;
+  task: string;
+  prompt_version: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  cost: number;
+  latency_ms: number;
+  success: boolean;
+  error_message?: string;
+  fallback_used: boolean;
+  fallback_reason?: string;
+  primary_provider?: string;
+  primary_error?: string;
+  prompt_hash?: string;
+  created_at: string;
+}
+
+export interface AIAnalyticsSummary {
+  period_days: number;
+  total_calls: number;
+  success_count: number;
+  failure_count: number;
+  success_rate: number;
+  fallback_count: number;
+  fallback_rate: number;
+  total_cost: number;
+  daily_spend_today: number;
+  total_prompt_tokens: number;
+  total_completion_tokens: number;
+  total_tokens: number;
+  avg_latency_ms: number;
+  provider_breakdown: Array<{ provider: string; calls: number; cost: number; tokens: number }>;
+  task_breakdown: Array<{ task: string; calls: number; cost: number }>;
+}
+
+export async function getAIStatus(): Promise<AIProviderStatus> {
+  return await request<AIProviderStatus>("/api/v1/ai/status");
+}
+
+export async function generateAIText(payload: {
+  prompt: string;
+  system_prompt?: string;
+  task?: string;
+  temperature?: number;
+  max_tokens?: number;
+  preferred_provider?: string;
+  allow_fallback?: boolean;
+  simulate_failure?: string;
+}): Promise<AIResponse> {
+  return await request<AIResponse>("/api/v1/ai/generate-text", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function generateAIStructured(payload: {
+  prompt: string;
+  response_schema: Record<string, any>;
+  system_prompt?: string;
+  task?: string;
+  temperature?: number;
+  preferred_provider?: string;
+  allow_fallback?: boolean;
+  simulate_failure?: string;
+}): Promise<AIResponse> {
+  return await request<AIResponse>("/api/v1/ai/generate-structured", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function analyzeAIContent(payload: {
+  content: string;
+  instruction: string;
+  criteria?: string[];
+  task?: string;
+  preferred_provider?: string;
+  allow_fallback?: boolean;
+  simulate_failure?: string;
+}): Promise<AIResponse> {
+  return await request<AIResponse>("/api/v1/ai/analyze", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getAILogs(params?: {
+  limit?: number;
+  offset?: number;
+  provider?: string;
+  task?: string;
+  success?: boolean;
+  fallback_used?: boolean;
+}): Promise<AIInvocationLog[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+  if (params?.offset) searchParams.set("offset", params.offset.toString());
+  if (params?.provider) searchParams.set("provider", params.provider);
+  if (params?.task) searchParams.set("task", params.task);
+  if (params?.success !== undefined) searchParams.set("success", params.success.toString());
+  if (params?.fallback_used !== undefined) searchParams.set("fallback_used", params.fallback_used.toString());
+  const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return await request<AIInvocationLog[]>(`/api/v1/ai/logs${qs}`);
+}
+
+export async function getAIAnalytics(days: number = 30): Promise<AIAnalyticsSummary> {
+  return await request<AIAnalyticsSummary>(`/api/v1/ai/analytics?days=${days}`);
+}
+
+
 
 

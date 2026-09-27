@@ -1,0 +1,22 @@
+id: "ai"
+name: "AI Provider Engine"
+version: "1.0.0"
+description: "Pluggable LLM provider adapters (Gemini, Qwen) with technical fallback and token cost logging."
+enabled: true
+inputs:
+  - "PromptRequest"
+  - "StructuredPromptRequest"
+  - "AnalyzeRequest"
+outputs:
+  - "ModelResponse"
+  - "StructuredResponse"
+  - "AnalysisResponse"
+dependencies: []
+triggers:
+  - "manual"
+  - "engine_call"
+supports:
+  dry_run: true
+  explain: true
+  health_check: true
+  configure: true

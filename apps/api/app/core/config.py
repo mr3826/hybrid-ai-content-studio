@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Union
+from typing import List, Optional, Union
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -34,6 +34,16 @@ class Settings(BaseSettings):
     AI_MOCK_MODE: bool = True
     TTS_MOCK_MODE: bool = True
     FFMPEG_BINARY: str = "ffmpeg"
+
+    # AI Provider Settings
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+    QWEN_API_KEY: Optional[str] = None
+    QWEN_API_BASE: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    QWEN_MODEL: str = "qwen-plus"
+    AI_PRIMARY_PROVIDER: str = "gemini"
+    AI_FALLBACK_PROVIDER: str = "qwen"
+    AI_FALLBACK_ENABLED: bool = True
 
     # Manual Publishing Platform Default URLs
     PLATFORM_YOUTUBE_STUDIO_URL: str = "https://studio.youtube.com/"

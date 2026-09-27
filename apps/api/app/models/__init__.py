@@ -18,6 +18,7 @@ from app.models.evidence import (
     Conclusion,
     ContentClaim,
 )
+from app.models.ai import AIInvocationLog
 
 __all__ = [
     "Base",
@@ -48,4 +49,5 @@ __all__ = [
     "Measurement",
     "Conclusion",
     "ContentClaim",
+    "AIInvocationLog",
 ]
