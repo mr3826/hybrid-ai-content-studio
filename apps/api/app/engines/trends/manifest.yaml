@@ -1,0 +1,23 @@
+id: trends
+name: Trends Engine
+version: 1.0.0
+description: Independent niche momentum and velocity tracker. Evaluates cross-source mentions, mention velocity, first-seen recency, source diversity and authority without paid APIs, producing transparent, explainable scores.
+enabled: true
+inputs:
+  - DiscoveryCandidate
+  - TopicSignal
+outputs:
+  - TrendTopic
+  - TrendCluster
+  - TrendExplanation
+dependencies:
+  - niche_guard
+triggers:
+  - manual
+  - scheduled
+  - worker
+supports:
+  dry_run: true
+  explain: true
+  health_check: true
+  configure: true

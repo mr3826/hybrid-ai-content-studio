@@ -10,11 +10,13 @@ import {
   Settings as SettingsIcon,
   Layers,
   Rss,
+  TrendingUp,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: Layers },
   { href: "/sources", label: "Sources", icon: Rss },
+  { href: "/trends", label: "Trends", icon: TrendingUp },
   { href: "/opportunities", label: "Opportunities", icon: Compass },
   { href: "/projects", label: "Projects", icon: Film },
   { href: "/engines", label: "Engines", icon: Cpu },

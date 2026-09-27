@@ -648,3 +648,148 @@ export async function getDiscoveredCandidate(
   return await request<DiscoveredCandidate>(`/api/v1/rss/candidates/${id}`);
 }
 
+// ---------------------------------------------------------
+// Trends Engine Contracts & API
+// ---------------------------------------------------------
+
+export interface TrendScoreBreakdown {
+  base_mentions_score: number;
+  source_diversity_score: number;
+  source_authority_score: number;
+  recency_score: number;
+  velocity_score: number;
+  baseline_ratio: number;
+  manual_boost: number;
+  is_suppressed: boolean;
+  raw_score: number;
+  final_score: number;
+}
+
+export interface TrendExplanation {
+  topic_key: string;
+  title: string;
+  summary: string;
+  mentions_text: string;
+  sources_text: string;
+  recency_text: string;
+  baseline_text: string;
+  velocity_text: string;
+  breakdown: TrendScoreBreakdown;
+}
+
+export interface TrendHistoryItem {
+  id: string;
+  topic_id: string;
+  recorded_at: string;
+  trend_score: number;
+  momentum_score: number;
+  mention_count: number;
+  velocity: number;
+  snapshot_data: Record<string, any>;
+}
+
+export interface TrendTopic {
+  id: string;
+  topic_key: string;
+  title: string;
+  summary: string;
+  pillar: string | null;
+  keywords: string[];
+  trend_score: number;
+  momentum_score: number;
+  mention_count: number;
+  distinct_sources_count: number;
+  source_diversity_score: number;
+  source_authority_score: number;
+  velocity: number;
+  velocity_ratio: number;
+  historical_baseline: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  manual_boost: number;
+  is_suppressed: boolean;
+  status: "active" | "emerging" | "cooling" | "archived";
+  signal_ids: string[];
+  source_breakdown: Array<{
+    source_name: string;
+    source_type: string;
+    trust_weight: number;
+    url?: string;
+  }>;
+  explanation: TrendExplanation;
+  history?: TrendHistoryItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listTrends(params?: {
+  status?: string;
+  pillar?: string;
+  min_score?: number;
+  is_suppressed?: boolean;
+  sort_by?: "trend_score" | "velocity" | "recency" | "mentions";
+  limit?: number;
+}): Promise<TrendTopic[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.pillar) searchParams.set("pillar", params.pillar);
+  if (params?.min_score !== undefined) searchParams.set("min_score", params.min_score.toString());
+  if (params?.is_suppressed !== undefined) searchParams.set("is_suppressed", params.is_suppressed.toString());
+  if (params?.sort_by) searchParams.set("sort_by", params.sort_by);
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+
+  const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return await request<TrendTopic[]>(`/api/v1/trends${qs}`);
+}
+
+export async function getTrend(id: string): Promise<TrendTopic> {
+  return await request<TrendTopic>(`/api/v1/trends/${id}`);
+}
+
+export async function getTrendExplain(id: string): Promise<any> {
+  return await request<any>(`/api/v1/trends/${id}/explain`);
+}
+
+export async function runTrends(parameters: Record<string, any> = {}): Promise<EngineResult> {
+  return await request<EngineResult>("/api/v1/trends/run", {
+    method: "POST",
+    body: JSON.stringify(parameters),
+  });
+}
+
+export async function dryRunTrends(parameters: Record<string, any> = {}): Promise<EngineResult> {
+  return await request<EngineResult>("/api/v1/trends/dry-run", {
+    method: "POST",
+    body: JSON.stringify(parameters),
+  });
+}
+
+export async function boostTrend(id: string, boost_factor: number): Promise<TrendTopic> {
+  return await request<TrendTopic>(`/api/v1/trends/${id}/boost`, {
+    method: "POST",
+    body: JSON.stringify({ boost_factor }),
+  });
+}
+
+export async function suppressTrend(id: string, suppress: boolean): Promise<TrendTopic> {
+  return await request<TrendTopic>(`/api/v1/trends/${id}/suppress`, {
+    method: "POST",
+    body: JSON.stringify({ suppress }),
+  });
+}
+
+export async function createManualSignal(payload: {
+  title: string;
+  source_name?: string;
+  summary?: string;
+  url?: string;
+  pillar?: string;
+  trust_weight?: number;
+}): Promise<TrendTopic> {
+  return await request<TrendTopic>("/api/v1/trends/manual-signal", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+

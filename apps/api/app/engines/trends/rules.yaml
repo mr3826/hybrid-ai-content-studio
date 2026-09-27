@@ -1,0 +1,28 @@
+version: 1.0.0
+weights:
+  mentions_weight: 0.25
+  velocity_weight: 0.30
+  recency_weight: 0.20
+  authority_weight: 0.15
+  diversity_weight: 0.10
+
+thresholds:
+  min_mentions_for_trend: 1
+  recency_half_life_hours: 12.0
+  time_window_hours: 72
+  emerging_velocity_ratio: 0.5
+  hot_velocity_ratio: 1.5
+
+baseline:
+  default_mentions_per_day: 1.0
+  min_baseline_velocity: 0.02
+
+clustering:
+  entity_overlap_threshold: 0.35
+  max_keywords_per_topic: 6
+  cluster_window_hours: 72
+
+boost:
+  default_boost: 1.0
+  quick_boost_factor: 1.25
+  strong_boost_factor: 1.5
