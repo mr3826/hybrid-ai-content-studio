@@ -54,6 +54,9 @@ def test_in_niche_candidate_passes(engine: NicheGuardEngine, sample_niche):
 
     assert verdict.passed is True
     assert verdict.score >= 55.0
+    assert verdict.primary_pillar is not None
+    assert verdict.is_blocked is False
+    assert verdict.audience_relevance > 0.0
     assert len(verdict.pillar_matches) > 0
     assert len(verdict.matched_allowed_topics) > 0
     assert len(verdict.blocked_topics_detected) == 0

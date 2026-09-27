@@ -327,6 +327,26 @@ export default function EngineTesterModal({
                     </div>
                   </div>
 
+                  {/* Retrofit Metadata Badges: Primary Pillar, Audience Relevance, Flags */}
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="px-2.5 py-1 rounded-lg bg-indigo-950/80 border border-indigo-800 text-indigo-300 font-medium">
+                      Primary Pillar: <strong className="text-white">{ngVerdict.primary_pillar || "None"}</strong>
+                    </span>
+                    <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 font-medium">
+                      Audience Relevance: <strong className="text-emerald-400">{(ngVerdict.audience_relevance ?? 0).toFixed(0)}%</strong>
+                    </span>
+                    {ngVerdict.is_adjacent && (
+                      <span className="px-2.5 py-1 rounded-lg bg-amber-950/80 border border-amber-800 text-amber-300 font-medium">
+                        Adjacent Topic
+                      </span>
+                    )}
+                    {ngVerdict.is_blocked && (
+                      <span className="px-2.5 py-1 rounded-lg bg-red-950/80 border border-red-800 text-red-300 font-medium">
+                        Hard Blocked Topic
+                      </span>
+                    )}
+                  </div>
+
                   {/* Taxonomy matches */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                     <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
@@ -579,8 +599,8 @@ export default function EngineTesterModal({
                     </div>
                   </div>
 
-                  {/* Component score bars */}
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
+                  {/* The 6 Formal Brand QA Dimensions */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-center text-xs">
                     <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
                       <div className="text-[11px] text-slate-400 font-medium">
                         Tone
@@ -599,29 +619,52 @@ export default function EngineTesterModal({
                     </div>
                     <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
                       <div className="text-[11px] text-slate-400 font-medium">
-                        Cliché Pass
-                      </div>
-                      <div className="text-base font-bold text-slate-200 mt-0.5">
-                        {brandVerdict.cliche_score.toFixed(0)}%
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
-                      <div className="text-[11px] text-slate-400 font-medium">
-                        Claims
-                      </div>
-                      <div className="text-base font-bold text-slate-200 mt-0.5">
-                        {brandVerdict.claim_score.toFixed(0)}%
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
-                      <div className="text-[11px] text-slate-400 font-medium">
-                        Conciseness
+                        Repetition
                       </div>
                       <div className="text-base font-bold text-slate-200 mt-0.5">
                         {brandVerdict.repetition_score.toFixed(0)}%
                       </div>
                     </div>
+                    <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                      <div className="text-[11px] text-slate-400 font-medium">
+                        Audience Fit
+                      </div>
+                      <div className="text-base font-bold text-slate-200 mt-0.5">
+                        {(brandVerdict.audience_fit_score ?? 100).toFixed(0)}%
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                      <div className="text-[11px] text-slate-400 font-medium">
+                        CTA Fit
+                      </div>
+                      <div className="text-base font-bold text-slate-200 mt-0.5">
+                        {(brandVerdict.cta_fit_score ?? 100).toFixed(0)}%
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800">
+                      <div className="text-[11px] text-slate-400 font-medium">
+                        Platform Fit
+                      </div>
+                      <div className="text-base font-bold text-slate-200 mt-0.5">
+                        {(brandVerdict.platform_fit_score ?? 100).toFixed(0)}%
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Brand Memory Repetition Warnings */}
+                  {brandVerdict.repetition_warnings && brandVerdict.repetition_warnings.length > 0 && (
+                    <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-800/80 text-amber-200 text-xs space-y-1.5">
+                      <div className="font-semibold flex items-center gap-1.5 text-amber-300">
+                        <AlertTriangle className="w-4 h-4 text-amber-400" />
+                        Brand Memory Repetition Warnings ({brandVerdict.repetition_warnings.length}):
+                      </div>
+                      <ul className="list-disc list-inside space-y-1 text-slate-300 pl-1">
+                        {brandVerdict.repetition_warnings.map((w, idx) => (
+                          <li key={idx}>{w}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   {/* Violations List */}
                   {brandVerdict.violations.length > 0 && (

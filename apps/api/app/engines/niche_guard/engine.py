@@ -160,6 +160,10 @@ class NicheGuardEngine(BaseEngine):
                 passed=False,
                 score=0.0,
                 reason=f"Rejected: strictly blocked topic detected [{', '.join(blocked_detected)}].",
+                primary_pillar=None,
+                is_adjacent=False,
+                is_blocked=True,
+                audience_relevance=0.0,
                 blocked_topics_detected=blocked_detected,
                 factors=factors,
             )
@@ -341,6 +345,23 @@ class NicheGuardEngine(BaseEngine):
         else:
             summary_reason = f"Rejected: {'; '.join(reasons)}."
 
+        # Audience Relevance Evaluation
+        target_audience_desc = niche.get("audience", "")
+        audience_words = [w.lower() for w in re.findall(r"\b\w+\b", target_audience_desc) if len(w) > 4]
+        matched_aud_words = [w for w in audience_words if w in corpus]
+        if not audience_words:
+            aud_rel_score = 75.0 if passed else round(final_score * 0.5, 1)
+        else:
+            base_aud = 50.0 if passed else 20.0
+            aud_rel_score = min(100.0, round(base_aud + (len(matched_aud_words) * 20.0) + (len(matched_problems) * 10.0), 1))
+
+        factors.append(NicheGuardFactor(
+            criterion="audience_relevance",
+            points=round(aud_rel_score * 0.1, 1),
+            detail=f"Audience relevance evaluated at {aud_rel_score}% based on persona target keywords and problem fit.",
+            matched_items=matched_aud_words,
+        ))
+
         verdict_id = f"ngv-{uuid.uuid4().hex[:12]}"
         verdict = NicheGuardVerdict(
             id=verdict_id,
@@ -348,6 +369,10 @@ class NicheGuardEngine(BaseEngine):
             passed=passed,
             score=final_score,
             reason=summary_reason,
+            primary_pillar=matched_pillars[0] if matched_pillars else None,
+            is_adjacent=bool(matched_adjacent and not matched_allowed),
+            is_blocked=False,
+            audience_relevance=aud_rel_score,
             pillar_matches=matched_pillars,
             matched_allowed_topics=matched_allowed,
             matched_adjacent_topics=matched_adjacent,

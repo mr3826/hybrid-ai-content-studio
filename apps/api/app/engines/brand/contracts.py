@@ -29,11 +29,22 @@ class BrandQAVerdict(BaseModel):
     input_id: Optional[str] = Field(default=None, description="ID of the evaluated item if provided")
     on_brand: bool = Field(..., description="True if draft passes all critical brand gates")
     overall_score: float = Field(..., ge=0.0, le=100.0, description="Weighted brand adherence score [0.0 - 100.0]")
+    
+    # 6 Formal QA Dimensions
     tone_score: float = Field(..., ge=0.0, le=100.0, description="Tone & voice score")
     vocabulary_score: float = Field(..., ge=0.0, le=100.0, description="Vocabulary adherence score")
-    cliche_score: float = Field(..., ge=0.0, le=100.0, description="Cliché compliance score")
-    claim_score: float = Field(..., ge=0.0, le=100.0, description="Claim & evidence score")
-    repetition_score: float = Field(..., ge=0.0, le=100.0, description="Redundancy score")
+    repetition_score: float = Field(..., ge=0.0, le=100.0, description="Redundancy and memory repetition score")
+    audience_fit_score: float = Field(default=100.0, ge=0.0, le=100.0, description="Target audience fit score")
+    cta_fit_score: float = Field(default=100.0, ge=0.0, le=100.0, description="Call to action fit score")
+    platform_fit_score: float = Field(default=100.0, ge=0.0, le=100.0, description="Platform adaptation fit score")
+    dimensions: Dict[str, float] = Field(default_factory=dict, description="Summary of the 6 formal QA dimension scores")
+
+    # Granular sub-scores & metadata
+    cliche_score: float = Field(default=100.0, ge=0.0, le=100.0, description="Cliché compliance score")
+    claim_score: float = Field(default=100.0, ge=0.0, le=100.0, description="Claim & evidence score")
+    repetition_warnings: List[str] = Field(default_factory=list, description="Intelligent warnings regarding repetitive patterns")
+    matched_memory_items: List[Dict[str, Any]] = Field(default_factory=list, description="Brand memory items matched")
+
     violations: List[BrandViolation] = Field(default_factory=list, description="Detected violations")
     matched_preferred_words: List[str] = Field(default_factory=list, description="Approved preferred brand words found")
     matched_avoid_words: List[str] = Field(default_factory=list, description="Avoided words found")

@@ -428,6 +428,10 @@ export interface NicheGuardVerdict {
   passed: boolean;
   score: number;
   reason: string;
+  primary_pillar?: string | null;
+  is_adjacent?: boolean;
+  is_blocked?: boolean;
+  audience_relevance?: number;
   pillar_matches: string[];
   matched_allowed_topics: string[];
   matched_adjacent_topics: string[];
@@ -462,9 +466,15 @@ export interface BrandQAVerdict {
   overall_score: number;
   tone_score: number;
   vocabulary_score: number;
+  repetition_score: number;
+  audience_fit_score?: number;
+  cta_fit_score?: number;
+  platform_fit_score?: number;
+  dimensions?: Record<string, number>;
   cliche_score: number;
   claim_score: number;
-  repetition_score: number;
+  repetition_warnings?: string[];
+  matched_memory_items?: Array<Record<string, any>>;
   violations: BrandViolation[];
   matched_preferred_words: string[];
   matched_avoid_words: string[];

@@ -148,3 +148,71 @@ async def test_brand_engine_dry_run(engine: BrandEngine, sample_brand):
     result = await engine.dry_run(context)
     assert result.success is True
     assert "[DRY RUN]" in result.summary
+
+
+def test_brand_engine_six_dimensions(engine: BrandEngine, sample_brand):
+    item = BrandQAInput(
+        id="draft-dims",
+        title="Local Model Benchmarks",
+        body="We benchmarked reproducible latency across developer workflows.",
+        hook="Here is our local model benchmark.",
+        cta="Check out the reproduction repository.",
+        platform="youtube_shorts",
+    )
+    verdict = engine.evaluate_item(item, sample_brand, exemplars=[])
+
+    # Check 6 formal QA dimensions
+    assert "Tone" in verdict.dimensions
+    assert "Vocabulary" in verdict.dimensions
+    assert "Repetition" in verdict.dimensions
+    assert "Audience Fit" in verdict.dimensions
+    assert "CTA Fit" in verdict.dimensions
+    assert "Platform Fit" in verdict.dimensions
+
+    for dim_name, score in verdict.dimensions.items():
+        assert 0.0 <= score <= 100.0
+
+
+def test_brand_memory_repetition_detection(engine: BrandEngine, sample_brand):
+    memory = [
+        {
+            "id": "mem-1",
+            "memory_type": "hook",
+            "content": "Stop paying OpenAI for batch summarization when Ollama is faster.",
+            "usage_count": 3,
+        },
+        {
+            "id": "mem-2",
+            "memory_type": "topic",
+            "content": "ollama benchmarks",
+            "usage_count": 4,
+        },
+    ]
+
+    item = BrandQAInput(
+        id="draft-rep",
+        title="Ollama Benchmarks",
+        body="We measured the latency and reproducible token throughput of ollama benchmarks.",
+        hook="Stop paying OpenAI for batch summarization when Ollama is faster.",
+        cta="Inspect the benchmark repository.",
+    )
+
+    verdict = engine.evaluate_item(item, sample_brand, exemplars=[], memory=memory)
+
+    assert len(verdict.repetition_warnings) >= 1
+    assert any("Stop paying OpenAI" in w for w in verdict.repetition_warnings)
+    assert verdict.repetition_score < 100.0
+    assert any(v.rule_type == "hook_repetition" for v in verdict.violations)
+
+
+def test_brand_tone_drift_detection(engine: BrandEngine, sample_brand):
+    item = BrandQAInput(
+        id="draft-drift",
+        title="This tool will destroy everything",
+        body="This miracle setup will crazy destroy your previous benchmarks with insane speed.",
+    )
+
+    verdict = engine.evaluate_item(item, sample_brand, exemplars=[])
+
+    assert verdict.tone_score < 100.0
+    assert any(v.rule_type == "tone_drift" for v in verdict.violations)

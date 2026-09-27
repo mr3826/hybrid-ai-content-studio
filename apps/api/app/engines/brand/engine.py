@@ -67,13 +67,18 @@ class BrandEngine(BaseEngine):
 
     async def _get_brand_data(
         self, override: Optional[Dict[str, Any]] = None
-    ) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        """Fetch active singleton BrandProfile and exemplars from SQLite, or fallback."""
+    ) -> tuple[Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Fetch active singleton BrandProfile, exemplars, and brand memory from SQLite, or fallback."""
         if override:
-            return override.get("profile", override), override.get("exemplars", [])
+            return (
+                override.get("profile", override),
+                override.get("exemplars", []),
+                override.get("memory", []),
+            )
 
         profile_data: Optional[Dict[str, Any]] = None
         exemplars_data: List[Dict[str, Any]] = []
+        memory_data: List[Dict[str, Any]] = []
 
         try:
             async with AsyncSessionLocal() as session:
@@ -92,6 +97,9 @@ class BrandEngine(BaseEngine):
                         "banned_cliches": brand.banned_cliches or [],
                         "claim_rules": brand.claim_rules or [],
                         "cta_style": brand.cta_style or "",
+                        "default_lead_magnet": brand.default_lead_magnet or "",
+                        "newsletter_cta": brand.newsletter_cta or "",
+                        "digital_product_cta": brand.digital_product_cta or "",
                     }
 
                 ex_stmt = select(BrandExemplar)
@@ -103,6 +111,18 @@ class BrandEngine(BaseEngine):
                         "title": ex.title,
                         "content": ex.content,
                         "platform": ex.platform,
+                    })
+
+                from app.models.brand import BrandMemoryItem
+                mem_stmt = select(BrandMemoryItem).order_by(BrandMemoryItem.last_used_at.desc())
+                mem_res = await session.execute(mem_stmt)
+                for mem in mem_res.scalars().all():
+                    memory_data.append({
+                        "id": mem.id,
+                        "memory_type": mem.memory_type,
+                        "content": mem.content,
+                        "usage_count": mem.usage_count,
+                        "last_used_at": mem.last_used_at.isoformat() if mem.last_used_at else None,
                     })
         except Exception:
             pass
@@ -132,9 +152,12 @@ class BrandEngine(BaseEngine):
                     "Include pricing tiers and hidden API token limits.",
                 ],
                 "cta_style": "Direct, educational, and low-friction.",
+                "default_lead_magnet": "",
+                "newsletter_cta": "",
+                "digital_product_cta": "",
             }
 
-        return profile_data, exemplars_data
+        return profile_data, exemplars_data, memory_data
 
     def _match_term(self, term: str, text: str) -> bool:
         cleaned_term = term.strip().lower()
@@ -150,6 +173,7 @@ class BrandEngine(BaseEngine):
         item: BrandQAInput,
         brand: Dict[str, Any],
         exemplars: List[Dict[str, Any]],
+        memory: Optional[List[Dict[str, Any]]] = None,
     ) -> BrandQAVerdict:
         thresholds = self.rules.get("thresholds", {})
         weights = self.rules.get("weights", {})
@@ -171,6 +195,8 @@ class BrandEngine(BaseEngine):
 
         violations: List[BrandViolation] = []
         factors: List[Dict[str, Any]] = []
+        repetition_warnings: List[str] = []
+        matched_memory_items: List[Dict[str, Any]] = []
 
         # 1. Banned Clichés Check
         banned_cliches = brand.get("banned_cliches", [])
@@ -227,7 +253,7 @@ class BrandEngine(BaseEngine):
             "matched_preferred": matched_preferred,
         })
 
-        # 3. Tone & Hype Analysis
+        # 3. Tone & Hype Analysis (Dimension: Tone)
         tone_score = 100.0
 
         # Exclamation point check (calm tone)
@@ -256,6 +282,19 @@ class BrandEngine(BaseEngine):
                 matched_phrase=", ".join(all_caps_violations),
                 message="ALL CAPS shouting words detected.",
                 suggestion="Use normal casing for technical emphasis.",
+            ))
+
+        # Check tone drift (emotional/aggressive hyperbole)
+        tone_drift_keywords = ["destroy", "crush", "insane", "crazy", "stupid", "magic", "miracle"]
+        matched_drift = [k for k in tone_drift_keywords if self._match_term(k, corpus)]
+        if matched_drift:
+            tone_score = max(0.0, tone_score - (len(matched_drift) * 15.0))
+            violations.append(BrandViolation(
+                rule_type="tone_drift",
+                severity="warning",
+                matched_phrase=", ".join(matched_drift),
+                message=f"Tone drift detected: emotional/hyperbolic phrasing '{', '.join(matched_drift)}' violates calm, evidence-driven policy.",
+                suggestion="Replace emotional hype with objective, measurable technical observations.",
             ))
 
         factors.append({
@@ -298,7 +337,7 @@ class BrandEngine(BaseEngine):
             "unsupported_claims": unsupported_claims,
         })
 
-        # 5. Redundancy & Repetition Check
+        # 5. Redundancy & Repetition Check (Dimension: Repetition)
         repetition_score = 100.0
         sentences = [s.strip() for s in re.split(r"[.!?]", combined_text) if len(s.strip()) > 15]
         if len(sentences) > len(set(sentences)):
@@ -311,15 +350,174 @@ class BrandEngine(BaseEngine):
                 suggestion="Prune redundant sentences to keep script concise and punchy.",
             ))
 
+        # Persistent Brand Memory Repetition Lookups
+        if memory:
+            # A. Hook pattern repetition
+            if item.hook:
+                hook_clean = item.hook.strip().lower()
+                hook_tokens = set(re.findall(r"\b\w+\b", hook_clean))
+                for m in memory:
+                    if m.get("memory_type") == "hook":
+                        m_content = m.get("content", "").strip().lower()
+                        mem_tokens = set(re.findall(r"\b\w+\b", m_content))
+                        overlap = len(hook_tokens.intersection(mem_tokens))
+                        similarity = overlap / max(1, len(hook_tokens))
+                        if similarity >= 0.7 or hook_clean == m_content:
+                            count = m.get("usage_count", 1)
+                            warn = f"Hook pattern matches previously used hook (used {count}x): '{m.get('content', '')[:60]}'"
+                            repetition_warnings.append(warn)
+                            repetition_score = max(0.0, repetition_score - min(30.0, count * 10.0))
+                            matched_memory_items.append(m)
+                            violations.append(BrandViolation(
+                                rule_type="hook_repetition",
+                                severity="warning",
+                                matched_phrase=item.hook,
+                                message=warn,
+                                suggestion="Rotate hook angle: lead with an unexpected benchmark anomaly, failure rate, or cost comparison.",
+                            ))
+                            break
+
+            # B. Topic recency
+            for m in memory:
+                if m.get("memory_type") == "topic":
+                    m_content = m.get("content", "").strip()
+                    if m_content and self._match_term(m_content, corpus):
+                        count = m.get("usage_count", 1)
+                        warn = f"Topic '{m_content}' was covered recently (usage: {count}x)."
+                        repetition_warnings.append(warn)
+                        matched_memory_items.append(m)
+                        if count >= 3:
+                            repetition_score = max(0.0, repetition_score - 10.0)
+                            violations.append(BrandViolation(
+                                rule_type="topic_recency",
+                                severity="warning",
+                                matched_phrase=m_content,
+                                message=warn,
+                                suggestion="Consider an adjacent topic or fresh angle rather than retreading the same subject.",
+                            ))
+
+            # C. CTA repetition
+            if item.cta:
+                for m in memory:
+                    if m.get("memory_type") == "cta":
+                        m_content = m.get("content", "").strip()
+                        if m_content and self._match_term(m_content, item.cta):
+                            count = m.get("usage_count", 1)
+                            if count >= 3:
+                                warn = f"CTA pattern '{item.cta[:40]}' has been used {count}x; consider rotating."
+                                repetition_warnings.append(warn)
+                                repetition_score = max(0.0, repetition_score - 10.0)
+                                matched_memory_items.append(m)
+                                break
+
+            # D. Conclusion repetition
+            for m in memory:
+                if m.get("memory_type") == "conclusion":
+                    m_content = m.get("content", "").strip()
+                    if m_content and self._match_term(m_content, corpus):
+                        count = m.get("usage_count", 1)
+                        warn = f"Conclusion structure matches previously used conclusion (used {count}x)."
+                        repetition_warnings.append(warn)
+                        repetition_score = max(0.0, repetition_score - 10.0)
+                        matched_memory_items.append(m)
+                        break
+
         factors.append({
             "dimension": "repetition",
             "score": repetition_score,
+            "repetition_warnings": repetition_warnings,
+            "matched_memory_count": len(matched_memory_items),
         })
 
-        # 6. Approved Exemplar Search
+        # 6. Audience Fit (Dimension: Audience Fit)
+        aud_text = brand.get("audience", "")
+        aud_keywords = [w.lower() for w in re.findall(r"\b\w+\b", aud_text) if len(w) > 4]
+        matched_aud = [k for k in aud_keywords if k in corpus]
+        aud_score = 75.0
+        if matched_aud:
+            aud_score = min(100.0, 75.0 + len(matched_aud) * 8.0)
+
+        # Incompatible novice/get-rich phrasing check
+        novice_signals = ["for complete beginners", "no coding required", "no technical knowledge", "anyone can do it in 2 minutes"]
+        for ns in novice_signals:
+            if ns in corpus:
+                aud_score = max(0.0, aud_score - 25.0)
+                violations.append(BrandViolation(
+                    rule_type="audience_mismatch",
+                    severity="warning",
+                    matched_phrase=ns,
+                    message="Audience mismatch: Low-friction hype phrasing violates target audience standards (technical builders).",
+                    suggestion="Frame concepts around architectural tradeoffs and developer workflow.",
+                ))
+        audience_fit_score = round(aud_score, 1)
+        factors.append({
+            "dimension": "audience_fit",
+            "score": audience_fit_score,
+            "matched_keywords": matched_aud,
+        })
+
+        # 7. CTA Fit (Dimension: CTA Fit)
+        cta_score = 85.0
+        if item.cta:
+            # Check configured monetization CTAs
+            known_ctas = [
+                brand.get("default_lead_magnet", ""),
+                brand.get("newsletter_cta", ""),
+                brand.get("digital_product_cta", ""),
+            ]
+            if any(k and (k.lower() in item.cta.lower() or item.cta.lower() in k.lower()) for k in known_ctas):
+                cta_score = 100.0
+
+            # Hype / Urgency pressure check
+            pressure_words = ["buy now", "last chance", "don't miss out", "before it's gone", "hurry"]
+            for pw in pressure_words:
+                if pw in item.cta.lower():
+                    cta_score = max(0.0, cta_score - 25.0)
+                    violations.append(BrandViolation(
+                        rule_type="cta_hype",
+                        severity="warning",
+                        matched_phrase=pw,
+                        message="High-pressure conversion wording violates calm, educational CTA policy.",
+                        suggestion="Use a direct, low-friction educational invitation (e.g. check reproduction notebook).",
+                    ))
+        cta_fit_score = round(cta_score, 1)
+        factors.append({
+            "dimension": "cta_fit",
+            "score": cta_fit_score,
+        })
+
+        # 8. Platform Fit (Dimension: Platform Fit)
+        plat_score = 90.0
+        if item.platform in ["youtube_shorts", "tiktok"]:
+            if not item.hook:
+                plat_score = max(0.0, plat_score - 25.0)
+                violations.append(BrandViolation(
+                    rule_type="missing_hook",
+                    severity="warning",
+                    matched_phrase="",
+                    message="Short-form video drafts require an explicit opening hook in the first sentence.",
+                    suggestion="Add a punchy opening hook (e.g. state benchmark or test setup).",
+                ))
+            word_count = len(combined_text.split())
+            if word_count > 320:
+                plat_score = max(0.0, plat_score - 20.0)
+                violations.append(BrandViolation(
+                    rule_type="platform_duration_exceeded",
+                    severity="warning",
+                    matched_phrase=f"{word_count} words",
+                    message=f"Draft word count ({word_count} words) exceeds recommended 60-second pacing (150-240 words).",
+                    suggestion="Trim draft to under 240 words for short-form format.",
+                ))
+        platform_fit_score = round(plat_score, 1)
+        factors.append({
+            "dimension": "platform_fit",
+            "score": platform_fit_score,
+            "platform": item.platform,
+        })
+
+        # 9. Approved Exemplar Search
         exemplar_matches: List[Dict[str, Any]] = []
         for ex in exemplars:
-            # Score relevance to draft title/body
             ex_words = set(ex.get("content", "").lower().split())
             draft_words = set(corpus.split())
             overlap = len(ex_words.intersection(draft_words))
@@ -334,19 +532,23 @@ class BrandEngine(BaseEngine):
         exemplar_matches.sort(key=lambda x: x["overlap_tokens"], reverse=True)
         exemplar_matches = exemplar_matches[:3]
 
-        # 7. Overall Weighted Adherence Score
-        w_tone = float(weights.get("tone", 0.25))
-        w_vocab = float(weights.get("vocabulary", 0.25))
-        w_cliche = float(weights.get("cliche", 0.25))
-        w_claim = float(weights.get("claim", 0.15))
-        w_rep = float(weights.get("repetition", 0.10))
+        # 10. The 6 Formal QA Dimensions & Overall Adherence Score
+        dimensions = {
+            "Tone": tone_score,
+            "Vocabulary": vocab_score,
+            "Repetition": repetition_score,
+            "Audience Fit": audience_fit_score,
+            "CTA Fit": cta_fit_score,
+            "Platform Fit": platform_fit_score,
+        }
 
         overall_score = round(
-            (tone_score * w_tone)
-            + (vocab_score * w_vocab)
-            + (cliche_score * w_cliche)
-            + (claim_score * w_claim)
-            + (repetition_score * w_rep),
+            (tone_score * 0.20)
+            + (vocab_score * 0.25)
+            + (repetition_score * 0.15)
+            + (audience_fit_score * 0.15)
+            + (cta_fit_score * 0.10)
+            + (platform_fit_score * 0.15),
             1,
         )
 
@@ -363,9 +565,15 @@ class BrandEngine(BaseEngine):
             overall_score=overall_score,
             tone_score=tone_score,
             vocabulary_score=vocab_score,
+            repetition_score=repetition_score,
+            audience_fit_score=audience_fit_score,
+            cta_fit_score=cta_fit_score,
+            platform_fit_score=platform_fit_score,
+            dimensions=dimensions,
             cliche_score=cliche_score,
             claim_score=claim_score,
-            repetition_score=repetition_score,
+            repetition_warnings=repetition_warnings,
+            matched_memory_items=matched_memory_items,
             violations=violations,
             matched_preferred_words=matched_preferred,
             matched_avoid_words=matched_avoid,
@@ -382,7 +590,7 @@ class BrandEngine(BaseEngine):
         t0 = time.perf_counter()
 
         brand_override = context.parameters.get("brand_profile")
-        brand, exemplars = await self._get_brand_data(brand_override)
+        brand, exemplars, memory = await self._get_brand_data(brand_override)
 
         raw_inputs = []
         if "input" in context.parameters:
@@ -406,7 +614,7 @@ class BrandEngine(BaseEngine):
 
         for raw in raw_inputs:
             item = BrandQAInput(**raw) if isinstance(raw, dict) else raw
-            verdict = self.evaluate_item(item, brand, exemplars)
+            verdict = self.evaluate_item(item, brand, exemplars, memory)
             verdicts.append(verdict)
             if not verdict.on_brand:
                 rejected_count += 1

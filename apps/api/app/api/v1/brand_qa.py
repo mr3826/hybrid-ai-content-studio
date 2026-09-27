@@ -23,6 +23,6 @@ async def evaluate_brand_consistency(
             detail="Brand Engine is not registered or unavailable.",
         )
 
-    brand_data, exemplars = await engine._get_brand_data()
-    verdict = engine.evaluate_item(payload, brand_data, exemplars)
+    brand_data, exemplars, memory = await engine._get_brand_data()
+    verdict = engine.evaluate_item(payload, brand_data, exemplars, memory)
     return verdict
