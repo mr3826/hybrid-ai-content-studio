@@ -21,13 +21,16 @@ import {
   AlertCircle,
   FileSearch,
   ExternalLink,
+  Boxes,
 } from "lucide-react";
 import {
   CockpitSummary,
   Opportunity,
   StudioStatus,
+  ContentFamilyItem,
   getCockpitSummary,
   getStudioStatus,
+  listContentFamilies,
   approveOpportunityResearch,
   watchOpportunity,
   rejectOpportunity,
@@ -37,6 +40,7 @@ import {
 export default function CreatorCockpitPage() {
   const [summary, setSummary] = useState<CockpitSummary | null>(null);
   const [studioStatus, setStudioStatus] = useState<StudioStatus | null>(null);
+  const [families, setFamilies] = useState<ContentFamilyItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [runningAnalysis, setRunningAnalysis] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "info" | "error"; text: string } | null>(null);
@@ -44,18 +48,29 @@ export default function CreatorCockpitPage() {
   const fetchCockpitData = async () => {
     try {
       setLoading(true);
-      const [sumData, statusData] = await Promise.all([
+      const [sumData, statusData, familiesData] = await Promise.all([
         getCockpitSummary(),
         getStudioStatus(),
+        listContentFamilies().catch(() => []),
       ]);
       setSummary(sumData);
       setStudioStatus(statusData);
+      setFamilies(familiesData);
     } catch (e: any) {
       console.error("Cockpit load error:", e);
     } finally {
       setLoading(false);
     }
   };
+
+  const activeFamiliesCount = families.filter(
+    (f) => f.status === "ACTIVE" || f.status === "READY_FOR_CONTENT"
+  ).length;
+
+  const plannedItemsCount = families.reduce(
+    (acc, f) => acc + (f.item_count || 0),
+    0
+  );
 
   useEffect(() => {
     fetchCockpitData();
@@ -289,6 +304,51 @@ export default function CreatorCockpitPage() {
         </div>
       </div>
 
+      {/* Content Families Portfolio Status (Phase 11 Requirement) */}
+      <div className="p-5 rounded-2xl bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-zinc-900/60 border border-indigo-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-indigo-600/20 border border-indigo-500/30 rounded-xl text-indigo-400">
+            <Boxes className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-bold text-white">Content Family Engine</h3>
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                Amortized Research
+              </span>
+            </div>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Turn one evidence investment into multi-format, platform-tailored content items.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-xs">
+            <div className="px-3 py-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-indigo-400" />
+              <span className="text-zinc-400 font-medium">
+                <strong className="text-white font-bold">{activeFamiliesCount}</strong> Content Families Active
+              </span>
+            </div>
+            <div className="px-3 py-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="text-zinc-400 font-medium">
+                <strong className="text-white font-bold">{plannedItemsCount}</strong> Planned Content Items
+              </span>
+            </div>
+          </div>
+
+          <Link
+            href="/content-families"
+            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+          >
+            <span>Open Families</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </div>
+
       {/* Top Opportunity Section (Mandatory Spec Item) */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -372,13 +432,23 @@ export default function CreatorCockpitPage() {
 
                 {/* Human Gate Decision Buttons (Mandatory Spec Item) */}
                 <div className="pt-4 border-t border-zinc-800/80 flex items-center justify-between gap-2">
-                  <button
-                    onClick={() => handleApprove(opp.id, opp.topic)}
-                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Research
-                  </button>
+                  {opp.status === "research_ready" || opp.status === "approved" ? (
+                    <Link
+                      href={`/content-families?new=1&topic_id=${opp.id}&title=${encodeURIComponent(opp.topic)}&pillar=${encodeURIComponent(opp.pillar || "Core")}`}
+                      className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <Boxes className="w-3.5 h-3.5" />
+                      Create Content Family
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() => handleApprove(opp.id, opp.topic)}
+                      className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Research
+                    </button>
+                  )}
 
                   <button
                     onClick={() => handleWatch(opp.id, opp.topic)}

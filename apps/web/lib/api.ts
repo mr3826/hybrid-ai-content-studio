@@ -1758,6 +1758,277 @@ export async function linkExperimentEvidence(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Content Family Engine (Phase 11)
+// ---------------------------------------------------------------------------
+
+export interface ContentChildItemEvidence {
+  id: string;
+  claim_id: string;
+  relevance_note?: string;
+  is_primary: boolean;
+  claim_text: string;
+  claim_type: string;
+  is_verified: boolean;
+}
+
+export interface ContentChildItem {
+  id: string;
+  content_family_id: string;
+  family_title?: string;
+  format: string;
+  platform_target: string;
+  working_title: string;
+  angle: string;
+  hook_type: string;
+  status: string;
+  incremental_cost: number;
+  manual_time_minutes: number;
+  local_compute_seconds: number;
+  original_value_connection: string;
+  viewer_value: string;
+  evidence_count?: number;
+  evidence_selections?: ContentChildItemEvidence[];
+  created_at?: string;
+  approved_at?: string;
+}
+
+export interface ContentFamilyEconomics {
+  family_id?: string;
+  item_count: number;
+  shared_family_cost: number;
+  shared_manual_time_minutes: number;
+  shared_compute_seconds: number;
+  total_incremental_cost: number;
+  total_family_cost: number;
+  cost_per_child: number;
+  total_time_minutes: number;
+  total_compute_seconds: number;
+  roi_ratio: number;
+}
+
+export interface ContentFamilyItem {
+  id: string;
+  title: string;
+  slug: string;
+  status: string;
+  content_pillar: string;
+  original_value_type: string;
+  summary: string;
+  topic_id?: string;
+  research_packet_id?: string;
+  originality_plan_id?: string;
+  primary_experiment_id?: string;
+  item_count: number;
+  shared_cost: number;
+  created_at?: string;
+  approved_at?: string;
+}
+
+export interface ContentFamilyDetail extends ContentFamilyItem {
+  research_cost: number;
+  experiment_cost: number;
+  ai_cost: number;
+  media_cost: number;
+  manual_time_minutes: number;
+  local_compute_seconds: number;
+  economics: ContentFamilyEconomics;
+  items: ContentChildItem[];
+  updated_at?: string;
+  archived_at?: string;
+}
+
+export interface ChildSuggestionProposal {
+  format: string;
+  platform_target: string;
+  working_title: string;
+  angle: string;
+  hook_type: string;
+  evidence_focus: string[];
+  original_value_connection: string;
+  viewer_value: string;
+}
+
+export interface SuggestChildrenResponse {
+  family_title: string;
+  proposals: ChildSuggestionProposal[];
+  brand_applied: string;
+  pillar_applied: string;
+}
+
+export async function getContentFamilyHealth(): Promise<{ status: string; engine_id: string }> {
+  return await request<{ status: string; engine_id: string }>("/api/v1/content-families/health");
+}
+
+export async function listContentFamilies(params?: {
+  status?: string;
+  content_pillar?: string;
+  topic_id?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<ContentFamilyItem[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.content_pillar) searchParams.set("content_pillar", params.content_pillar);
+  if (params?.topic_id) searchParams.set("topic_id", params.topic_id);
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+  if (params?.offset) searchParams.set("offset", params.offset.toString());
+  const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return await request<ContentFamilyItem[]>(`/api/v1/content-families${qs}`);
+}
+
+export async function getContentFamily(id: string): Promise<ContentFamilyDetail> {
+  return await request<ContentFamilyDetail>(`/api/v1/content-families/${id}`);
+}
+
+export async function createContentFamily(payload: {
+  title: string;
+  content_pillar?: string;
+  original_value_type?: string;
+  summary?: string;
+  topic_id?: string;
+  research_packet_id?: string;
+  originality_plan_id?: string;
+  primary_experiment_id?: string;
+  research_cost?: number;
+  experiment_cost?: number;
+  ai_cost?: number;
+  media_cost?: number;
+  manual_time_minutes?: number;
+  local_compute_seconds?: number;
+}): Promise<ContentFamilyItem> {
+  return await request<ContentFamilyItem>("/api/v1/content-families", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateContentFamily(
+  id: string,
+  payload: Record<string, any>
+): Promise<{ id: string; title: string; status: string }> {
+  return await request<{ id: string; title: string; status: string }>(`/api/v1/content-families/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function approveContentFamily(
+  id: string,
+  payload?: { reviewer?: string }
+): Promise<{ id: string; status: string; approved_at?: string }> {
+  return await request<{ id: string; status: string; approved_at?: string }>(
+    `/api/v1/content-families/${id}/approve`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload || {}),
+    }
+  );
+}
+
+export async function archiveContentFamily(id: string): Promise<{ id: string; status: string; archived_at?: string }> {
+  return await request<{ id: string; status: string; archived_at?: string }>(
+    `/api/v1/content-families/${id}/archive`,
+    {
+      method: "POST",
+    }
+  );
+}
+
+export async function suggestContentFamilyItems(familyId: string): Promise<SuggestChildrenResponse> {
+  return await request<SuggestChildrenResponse>(`/api/v1/content-families/${familyId}/suggest-items`, {
+    method: "POST",
+  });
+}
+
+export async function listFamilyItems(
+  familyId: string,
+  params?: {
+    status?: string;
+    format?: string;
+    platform_target?: string;
+  }
+): Promise<ContentChildItem[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.format) searchParams.set("format", params.format);
+  if (params?.platform_target) searchParams.set("platform_target", params.platform_target);
+  const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return await request<ContentChildItem[]>(`/api/v1/content-families/${familyId}/items${qs}`);
+}
+
+export async function createFamilyItem(
+  familyId: string,
+  payload: {
+    format: string;
+    working_title: string;
+    angle: string;
+    platform_target?: string;
+    hook_type?: string;
+    status?: string;
+    incremental_cost?: number;
+    manual_time_minutes?: number;
+    local_compute_seconds?: number;
+    original_value_connection?: string;
+    viewer_value?: string;
+    claim_ids?: string[];
+  }
+): Promise<ContentChildItem> {
+  return await request<ContentChildItem>(`/api/v1/content-families/${familyId}/items`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getContentItem(itemId: string): Promise<ContentChildItem> {
+  return await request<ContentChildItem>(`/api/v1/content-items/${itemId}`);
+}
+
+export async function updateContentItem(
+  itemId: string,
+  payload: Record<string, any>
+): Promise<{ id: string; working_title: string; status: string; format: string }> {
+  return await request<{ id: string; working_title: string; status: string; format: string }>(
+    `/api/v1/content-items/${itemId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export async function deleteContentItem(itemId: string): Promise<{ id: string; deleted: boolean }> {
+  return await request<{ id: string; deleted: boolean }>(`/api/v1/content-items/${itemId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function linkChildEvidence(
+  itemId: string,
+  payload: {
+    claim_id: string;
+    relevance_note?: string;
+    is_primary?: boolean;
+  }
+): Promise<ContentChildItemEvidence> {
+  return await request<ContentChildItemEvidence>(`/api/v1/content-items/${itemId}/evidence`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function unlinkChildEvidence(
+  itemId: string,
+  claimId: string
+): Promise<{ content_item_id: string; claim_id: string; unlinked: boolean }> {
+  return await request<{ content_item_id: string; claim_id: string; unlinked: boolean }>(
+    `/api/v1/content-items/${itemId}/evidence/${claimId}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
 
 
 

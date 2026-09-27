@@ -43,6 +43,7 @@ class BaseEngine(ABC):
 | `research` | Research Engine | ApprovedCandidate | ResearchPacket | None |
 | `originality` | Originality Engine | ResearchPacket | OriginalityPlan | None |
 | `ai` | AI Provider Engine | PromptRequest | ProviderResponse | None |
+| `content_family` | Content Family Engine | Research + Originality + Evidence + Brand | ContentFamilyPlan | `research`, `evidence`, `originality`, `brand` |
 | `content` | Content Engine | Research + Originality + Brand | MasterContent | `brand`, `ai` |
 | `media` | Media Engine | SceneStoryboard | RenderedMedia | None |
 | `export` | Export Engine | MasterContent + RenderedMedia | ExportPackage | None |

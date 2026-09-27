@@ -11,6 +11,10 @@ from app.repositories.feed_repository import FeedRepository
 from app.repositories.trend_repository import TrendRepository
 from app.repositories.ai_repository import AIRepository
 from app.repositories.originality_repository import OriginalityRepository
+from app.repositories.content_family_repository import (
+    ContentFamilyRepository,
+    ContentItemRepository,
+)
 
 __all__ = [
     "BaseRepository",
@@ -26,4 +30,6 @@ __all__ = [
     "TrendRepository",
     "AIRepository",
     "OriginalityRepository",
+    "ContentFamilyRepository",
+    "ContentItemRepository",
 ]

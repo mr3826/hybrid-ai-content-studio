@@ -20,6 +20,11 @@ from app.models.evidence import (
 )
 from app.models.ai import AIInvocationLog
 from app.models.originality import OriginalityPlan, ExperimentAttachment
+from app.models.content_family import (
+    ContentFamily,
+    ContentItem,
+    ContentItemEvidenceSelection,
+)
 
 __all__ = [
     "Base",
@@ -53,4 +58,7 @@ __all__ = [
     "AIInvocationLog",
     "OriginalityPlan",
     "ExperimentAttachment",
+    "ContentFamily",
+    "ContentItem",
+    "ContentItemEvidenceSelection",
 ]

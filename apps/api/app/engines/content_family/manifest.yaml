@@ -1,0 +1,21 @@
+id: "content_family"
+name: "Content Family Engine"
+version: "1.0.0"
+description: "Replaces single-piece content assumption with Content Families that reuse research, evidence, and experiments across multiple tailored child items."
+enabled: true
+inputs:
+  - "ResearchPacket"
+  - "OriginalityPlan"
+  - "EvidenceGraph"
+  - "BrandProfile"
+outputs:
+  - "ContentFamilyPlan"
+  - "ContentItemProposal"
+dependencies: []
+triggers:
+  - "manual"
+supports:
+  dry_run: true
+  explain: true
+  health_check: true
+  configure: true

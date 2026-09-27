@@ -1,0 +1,43 @@
+version: "1.0.0"
+supported_formats:
+  - id: "short_vertical"
+    name: "Short Vertical Video"
+    default_hook: "bold_claim"
+    target_platforms: ["youtube", "instagram", "tiktok"]
+  - id: "youtube_long"
+    name: "YouTube Long-form Video"
+    default_hook: "curiosity_gap"
+    target_platforms: ["youtube"]
+  - id: "social_post"
+    name: "Social Media Post"
+    default_hook: "surprising_stat"
+    target_platforms: ["facebook", "cross_platform"]
+  - id: "newsletter"
+    name: "Email Newsletter"
+    default_hook: "story_open"
+    target_platforms: ["cross_platform", "none"]
+  - id: "article"
+    name: "Deep-Dive Technical Article"
+    default_hook: "direct_value"
+    target_platforms: ["cross_platform", "none"]
+
+supported_platforms:
+  - "youtube"
+  - "facebook"
+  - "instagram"
+  - "tiktok"
+  - "cross_platform"
+  - "none"
+
+repetition_prevention:
+  block_identical_hooks: true
+  block_clone_angles: true
+  max_short_vertical_per_family: 5
+
+originality_inheritance:
+  require_original_value_connection: true
+  min_angle_length_chars: 15
+
+economics:
+  track_shared_costs: true
+  track_child_incremental_costs: true

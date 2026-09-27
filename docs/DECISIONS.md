@@ -27,3 +27,11 @@
 - **Context:** AI and content tools frequently degrade when coupled into massive monolithic scripts or fragile pipeline graphs.
 - **Decision:** Enforce 13 decoupled engines with typed Pydantic contracts, standalone manifests, independent rules, logs, and explainability.
 - **Consequences:** Any engine can be upgraded, mocked, or refactored independently without regression to other studio features.
+
+## ADR-005: Content Family Model — Amortized Research Investment Over One-to-One Project Assumptions
+- **Date:** 2026-09-27
+- **Status:** Accepted
+- **Context:** Naive content automation assumes 1 project = 1 piece of content. When executing empirical benchmarks, physical testing, and extensive fact verification, producing a single short or post yields unacceptable cost economics.
+- **Decision:** Establish a parent-child `ContentFamily` -> `ContentItem` domain architecture. One verified research packet, evidence graph, and originality plan generates multiple format-tailored child items (long-form YouTube, vertical shorts, social companion carousels, newsletter drafts) that share facts via references (`ContentItemEvidenceSelection`) without duplicating Claim records.
+- **Consequences:** Maximizes ROI on empirical research investments. Children remain independently editable and format-specialized while maintaining single-source-of-truth factual grounding and brand cohesion. Enforces state machine isolation where children cannot become `SCRIPT_APPROVED` until the downstream script generation phase.
+
