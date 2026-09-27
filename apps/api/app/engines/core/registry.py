@@ -90,6 +90,8 @@ class EngineRegistry:
             result = EngineResult(
                 engine_id=engine.id,
                 engine_version=engine.version,
+                rules_version=engine.rules_version,
+                project_id=context.project_id,
                 run_id=context.run_id,
                 success=False,
                 started_at=start_time,
@@ -99,11 +101,19 @@ class EngineRegistry:
                 errors=[str(e)],
             )
 
+        # Ensure rules_version and project_id are propagated on result
+        if not result.rules_version or result.rules_version == "1.0.0":
+            result.rules_version = engine.rules_version
+        if context.project_id and not result.project_id:
+            result.project_id = context.project_id
+
         # Log run in database if session is provided
         if session:
             record = EngineRunRecord(
                 engine_id=result.engine_id,
                 engine_version=result.engine_version,
+                rules_version=result.rules_version,
+                project_id=result.project_id,
                 run_id=result.run_id,
                 trigger=context.trigger,
                 status="dry_run" if dry_run else ("completed" if result.success else "failed"),

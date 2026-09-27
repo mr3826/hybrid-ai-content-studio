@@ -37,6 +37,7 @@ class EngineHealth(BaseModel):
 
 class EngineContext(BaseModel):
     run_id: str
+    project_id: Optional[str] = None
     dry_run: bool = False
     trigger: str = "manual"
     parameters: Dict[str, Any] = Field(default_factory=dict)
@@ -45,6 +46,8 @@ class EngineContext(BaseModel):
 class EngineResult(BaseModel):
     engine_id: str
     engine_version: str
+    rules_version: str = "1.0.0"
+    project_id: Optional[str] = None
     run_id: str
     success: bool
     started_at: datetime
@@ -86,6 +89,10 @@ class BaseEngine(ABC):
     @property
     def version(self) -> str:
         return self.manifest.version
+
+    @property
+    def rules_version(self) -> str:
+        return str(self.rules.get("version", "1.0.0"))
 
     def _load_manifest(self) -> EngineManifest:
         if self.engine_dir:

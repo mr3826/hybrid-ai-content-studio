@@ -10,7 +10,11 @@ sys.path.insert(0, str(ROOT_DIR / "apps" / "api"))
 sys.path.insert(0, str(ROOT_DIR))
 
 from app.core.config import settings
-from app.core.database import check_db_health
+from app.core.database import check_db_health, AsyncSessionLocal
+from app.repositories.job_repository import JobRepository
+from app.engines.core.registry import engine_registry
+from app.engines.core.base import EngineContext
+from app.engines.catalog import register_all_catalog_engines
 
 logging.basicConfig(
     level=settings.LOG_LEVEL,
@@ -35,6 +39,9 @@ class StudioWorker:
         else:
             logger.warning("Worker could not verify database connection at startup.")
 
+        register_all_catalog_engines()
+        logger.info("Engine catalog loaded in worker.")
+
         while self._running:
             try:
                 await self.poll_and_execute()
@@ -46,8 +53,42 @@ class StudioWorker:
         logger.info("Worker process stopped cleanly.")
 
     async def poll_and_execute(self):
-        # Phase 0: Heartbeat check; future phases poll job queues for TTS, FFmpeg, and batch fetches
-        pass
+        """Poll SQLite job queue and execute next pending job."""
+        async with AsyncSessionLocal() as session:
+            repo = JobRepository(session)
+            job = await repo.claim_next_job()
+            if not job:
+                return
+
+            logger.info(f"Claimed job {job.id} (type={job.job_type}, engine={job.engine_id})")
+            try:
+                if job.job_type == "engine_run" and job.engine_id:
+                    ctx = EngineContext(
+                        run_id=job.id[:8],
+                        project_id=job.project_id,
+                        dry_run=job.payload.get("dry_run", False),
+                        trigger="worker_job",
+                        parameters=job.payload.get("parameters", {}),
+                    )
+                    result = await engine_registry.execute_engine(
+                        job.engine_id,
+                        context=ctx,
+                        dry_run=ctx.dry_run,
+                        session=session,
+                    )
+                    if result.success:
+                        await repo.complete_job(job.id, result_data=result.model_dump(mode="json"))
+                        logger.info(f"Job {job.id} completed successfully.")
+                    else:
+                        await repo.fail_job(job.id, error_message=result.summary or "Engine execution failed")
+                        logger.warning(f"Job {job.id} failed: {result.summary}")
+                else:
+                    # Echo / Generic task processing
+                    await repo.complete_job(job.id, result_data={"processed": True, "payload": job.payload})
+                    logger.info(f"Job {job.id} processed generically.")
+            except Exception as exc:
+                logger.error(f"Exception executing job {job.id}: {exc}", exc_info=True)
+                await repo.fail_job(job.id, error_message=str(exc))
 
     def stop(self):
         logger.info("Stop signal received. Shutting down worker...")

@@ -2,7 +2,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from app.main import app
-from app.core.database import engine
+from app.core.database import engine, AsyncSessionLocal
 from app.models.base import Base
 
 
@@ -14,6 +14,12 @@ async def setup_test_db():
     register_all_catalog_engines()
     yield
     # Keep database tables for inspection or teardown
+
+
+@pytest_asyncio.fixture
+async def db_session():
+    async with AsyncSessionLocal() as session:
+        yield session
 
 
 @pytest_asyncio.fixture

@@ -15,6 +15,8 @@ class EngineRunRecord(Base, TimestampMixin):
     )
     engine_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     engine_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    rules_version: Mapped[str] = mapped_column(String(32), default="1.0.0", nullable=False)
+    project_id: Mapped[Optional[str]] = mapped_column(String(36), index=True, nullable=True)
     run_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     trigger: Mapped[str] = mapped_column(String(32), default="manual", nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="completed", nullable=False)  # completed, failed, dry_run
