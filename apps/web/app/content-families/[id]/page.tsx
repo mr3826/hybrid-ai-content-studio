@@ -548,6 +548,15 @@ export default function ContentFamilyDetailPage() {
                         <BookOpen className="w-3.5 h-3.5" />
                         Script Studio
                       </Link>
+                      {["SCRIPT_APPROVED", "EXPORTED", "READY_TO_PUBLISH", "PARTIALLY_PUBLISHED", "PUBLISHED"].includes(item.status) && (
+                        <Link
+                          href={`/publishing/${item.id}`}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/30 transition-colors"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          Publishing
+                        </Link>
+                      )}
                       <button
                         onClick={() => {
                           setTargetChildId(item.id);

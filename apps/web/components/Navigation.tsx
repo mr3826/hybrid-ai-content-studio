@@ -16,6 +16,7 @@ import {
   Bot,
   FlaskConical,
   Boxes,
+  Share2,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { href: "/evidence", label: "Evidence", icon: ShieldCheck },
   { href: "/originality", label: "Originality", icon: FlaskConical },
   { href: "/content-families", label: "Content Families", icon: Boxes },
+  { href: "/publishing", label: "Publishing", icon: Share2 },
   { href: "/ai", label: "AI Engine", icon: Bot },
   { href: "/projects", label: "Projects", icon: Film },
   { href: "/engines", label: "Engines", icon: Cpu },

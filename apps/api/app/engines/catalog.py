@@ -13,6 +13,7 @@ from app.engines.ai.engine import AIProviderEngine
 from app.engines.originality.engine import OriginalityEngine
 from app.engines.content_family.engine import ContentFamilyEngine
 from app.engines.content.engine import ContentEngine
+from app.engines.export.engine import ExportEngine
 
 CATALOG_DEFINITIONS = [
 
@@ -200,9 +201,12 @@ def register_all_catalog_engines() -> None:
     content_engine = ContentEngine()
     engine_registry.register(content_engine, replace=True)
 
+    export_engine = ExportEngine()
+    engine_registry.register(export_engine, replace=True)
+
     # Register remaining catalog engines as placeholders if not already registered
     for d in CATALOG_DEFINITIONS:
-        if d["id"] in ("niche_guard", "brand", "rss", "trends", "opportunity", "research", "evidence", "ai", "originality", "content_family", "content"):
+        if d["id"] in ("niche_guard", "brand", "rss", "trends", "opportunity", "research", "evidence", "ai", "originality", "content_family", "content", "export"):
             continue
         if not engine_registry.get(d["id"]):
             manifest = EngineManifest(**d)

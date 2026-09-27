@@ -30,6 +30,10 @@ from app.models.script import (
     ScriptSection,
     ScriptRevision,
 )
+from app.models.export import (
+    ExportPackage,
+    PlatformPublication,
+)
 
 __all__ = [
     "Base",
@@ -69,5 +73,7 @@ __all__ = [
     "ScriptDraft",
     "ScriptSection",
     "ScriptRevision",
+    "ExportPackage",
+    "PlatformPublication",
 ]
 

@@ -1,0 +1,14 @@
+id: export
+name: Export Engine
+version: 1.0.0
+description: Assembles verified content packages (markdown documents, platform text files, asset requirements, checksummed manifests) and manages manual publishing readiness.
+inputs:
+  - ExportEngineInput
+outputs:
+  - ExportPackageOutput
+  - PlatformPublicationOutput
+dependencies: []
+capabilities:
+  dry_run: true
+  explain: true
+  health_check: true

@@ -2206,3 +2206,124 @@ export async function restoreScriptRevision(
   );
 }
 
+// -----------------------------------------------------------------------------
+// Phase 13: Export & Publishing Assistant
+// -----------------------------------------------------------------------------
+
+export interface ExportPackageData {
+  id: string;
+  content_item_id: string;
+  package_slug: string;
+  export_dir: string;
+  manifest_data: Record<string, any>;
+  files: string[];
+  checksum: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlatformPublicationData {
+  id: string;
+  content_item_id: string;
+  export_package_id?: string;
+  platform: "youtube" | "facebook" | "instagram" | "tiktok" | string;
+  status: "NOT_READY" | "READY" | "PUBLISHED" | "SKIPPED";
+  title: string;
+  caption: string;
+  hashtags: string[];
+  pinned_comment: string;
+  checklist: {
+    media_ready?: boolean;
+    thumbnail_ready?: boolean;
+    title_caption_ready?: boolean;
+    sources_checked?: boolean;
+    affiliate_disclosure_needed?: boolean;
+    ai_disclosure_recommended?: boolean;
+    asset_rights_verified?: boolean;
+    [key: string]: boolean | undefined;
+  };
+  published_at?: string;
+  post_url?: string;
+  platform_post_id?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PublishingOverview {
+  content_item: {
+    id: string;
+    content_family_id: string;
+    working_title: string;
+    format: string;
+    platform_target: string;
+    status: string;
+    hook_type: string;
+    angle: string;
+    viewer_value: string;
+  };
+  export_package?: ExportPackageData;
+  publications: PlatformPublicationData[];
+  platform_launch_urls: Record<string, string>;
+}
+
+export interface PublishableItemSummary {
+  id: string;
+  working_title: string;
+  format: string;
+  platform_target: string;
+  status: string;
+  family_id: string;
+  family_title: string;
+  has_export: boolean;
+  export_slug?: string;
+  checksum?: string;
+  platform_statuses: Record<string, string>;
+  updated_at: string;
+}
+
+export async function createExportPackage(itemId: string): Promise<ExportPackageData> {
+  return await request<ExportPackageData>(
+    `/api/v1/export/${itemId}`,
+    { method: "POST" }
+  );
+}
+
+export async function getExportPackage(itemId: string): Promise<ExportPackageData> {
+  return await request<ExportPackageData>(
+    `/api/v1/export/item/${itemId}`
+  );
+}
+
+export async function getPublishingOverview(itemId: string): Promise<PublishingOverview> {
+  return await request<PublishingOverview>(
+    `/api/v1/publishing/item/${itemId}`
+  );
+}
+
+export async function updatePlatformPublication(
+  pubId: string,
+  payload: Partial<PlatformPublicationData>
+): Promise<PlatformPublicationData> {
+  return await request<PlatformPublicationData>(
+    `/api/v1/publishing/${pubId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export async function listPublishableItems(statusFilter?: string): Promise<PublishableItemSummary[]> {
+  const query = statusFilter && statusFilter !== "all" ? `?status_filter=${encodeURIComponent(statusFilter)}` : "";
+  return await request<PublishableItemSummary[]>(
+    `/api/v1/publishing/list${query}`
+  );
+}
+
+export function getExportDownloadUrl(itemId: string): string {
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  return `${base}/api/v1/export/item/${itemId}/download`;
+}
+
+

@@ -16,7 +16,7 @@
 | **Phase 10** | Originality & Experiment Workspace | PASS | `4ec72b5` | 116 pytest passed, web build passed | "What are WE adding?" gate, 12 originality formats, generic summary quarantine, experiment workspace & evidence link |
 | **Phase 11** | Content Family Engine | PASS | `3a05052` | 127 pytest passed, web build passed | Parent-child Content Family architecture, evidence selection bridge, originality inheritance, amortized economics, and Creator Cockpit integration |
 | **Phase 12** | Evidence-Driven Content & Script Studio | PASS | `54635535316a` | 137 pytest passed, web build passed | Evidence-grounded multi-format scripts, section-level refinement, 6 quality dimensions, human approval gate, revision restore |
-| **Phase 13** | Export & Publishing Assistant | NOT_STARTED | - | - | Prerequisite: Phase 12 pass |
+| **Phase 13** | Export & Publishing Assistant | PASS | pending commit | 145 pytest passed, web build passed | Offline export packages, SHA-256 integrity, 7-point checklist, 4-platform browser launchers & copy metadata tools |
 | **Validation Gate** | Real-World Content Validation Gate | NOT_STARTED | - | - | Prerequisite: Phase 13 pass |
 | **Phase 14** | Asset Rights Engine | NOT_STARTED | - | - | Prerequisite: Validation Gate pass |
 | **Phase 15** | Scene & Asset Studio | NOT_STARTED | - | - | Prerequisite: Phase 14 pass |

@@ -1,0 +1,64 @@
+engine:
+  id: export
+  version: 1.0.0
+
+storage:
+  export_root: data/exports
+  create_timestamped_dirs: true
+
+platform_limits:
+  youtube:
+    title_max_chars: 100
+    description_max_chars: 5000
+    max_hashtags: 15
+    include_timestamps: true
+  facebook:
+    caption_max_chars: 63206
+    recommended_hashtags: 4
+  instagram:
+    caption_max_chars: 2200
+    max_hashtags: 30
+    recommended_hashtags: 8
+  tiktok:
+    caption_max_chars: 2200
+    recommended_hashtags: 5
+
+package_contents:
+  required_files:
+    - sources.md
+    - evidence-summary.md
+    - script.md
+    - asset-requirements.md
+    - manifest.json
+  platform_directories:
+    - youtube
+    - facebook
+    - instagram
+    - tiktok
+
+checklist_dimensions:
+  - id: media_ready
+    label: Final Media Ready
+    description: Primary video render or companion carousel visual produced and inspected.
+  - id: thumbnail_ready
+    label: High-CTR Thumbnail Ready
+    description: High-contrast, brand-consistent thumbnail rendered and verified.
+  - id: title_caption_ready
+    label: Platform Title & Caption Ready
+    description: Platform-tailored title, description, and hashtags reviewed and finalized.
+  - id: sources_checked
+    label: Sources & Citations Checked
+    description: Primary sources and research packet citations verified for accurate attribution.
+  - id: affiliate_disclosure_needed
+    label: Affiliate Disclosure Checked
+    description: Declared if affiliate, sponsored, or promotional links are included in description.
+  - id: ai_disclosure_recommended
+    label: AI Tool Disclosure Recommended
+    description: Declared transparent human-in-the-loop AI assistance per platform policy.
+  - id: asset_rights_verified
+    label: Asset Rights & Licensing Verified
+    description: Confirmed all audio, visual assets, and B-roll are licensed, fair use, or owned.
+
+disclosures:
+  ai_disclosure_text: "Created with local AI research and script assistance; independently tested, fact-verified, and human-approved."
+  affiliate_disclosure_text: "Disclosure: Links may contain affiliate partnerships. We only recommend tools empirically tested in our lab."
