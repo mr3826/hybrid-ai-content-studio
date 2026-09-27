@@ -2031,4 +2031,178 @@ export async function unlinkChildEvidence(
 
 
 
+// ────────────────────────────────────────────────────────────────────────────
+// Script Studio (Phase 12)
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface ScriptSectionDetail {
+  id: string;
+  section_type: string;
+  order_index: number;
+  heading: string;
+  narration: string;
+  visual_cue: string;
+  estimated_seconds: number;
+  word_count: number;
+  linked_claim_ids: string[];
+}
+
+export interface ScriptRevisionSummary {
+  id: string;
+  revision_number: number;
+  trigger: string;
+  notes: string;
+  created_at: string;
+}
+
+export interface DimensionCheckResult {
+  dimension: string;
+  score: number;
+  passed: boolean;
+  is_blocking: boolean;
+  notes: string;
+  flags: string[];
+}
+
+export interface ScriptQualityVerdict {
+  is_approvable: boolean;
+  blocking_reasons: string[];
+  dimension_scores: Record<string, DimensionCheckResult>;
+  summary: string;
+}
+
+export interface ScriptDraft {
+  id: string;
+  content_item_id: string;
+  version: number;
+  format: string;
+  title: string;
+  target_platform: string;
+  target_duration_sec: number;
+  total_word_count: number;
+  estimated_duration_sec: number;
+  status: string;
+  is_approved: boolean;
+  approved_by: string | null;
+  approved_at: string | null;
+  override_reason: string | null;
+  quality_scores: ScriptQualityVerdict | null;
+  sections: ScriptSectionDetail[];
+  revisions: ScriptRevisionSummary[];
+}
+
+export type RefinementType = "shorten" | "expand" | "make_clearer" | "more_evidence" | "regenerate";
+
+export interface SectionRefineResult {
+  section_id: string;
+  new_narration: string;
+  new_visual_cue: string;
+  word_count: number;
+  estimated_seconds: number;
+  explanation: string;
+}
+
+export async function generateScriptDraft(
+  contentItemId: string,
+  targetDurationSec?: number,
+  guidance?: string
+): Promise<ScriptDraft> {
+  return await request<ScriptDraft>("/api/v1/scripts/generate", {
+    method: "POST",
+    body: JSON.stringify({
+      content_item_id: contentItemId,
+      target_duration_sec: targetDurationSec,
+      guidance,
+    }),
+  });
+}
+
+export async function getScript(scriptId: string): Promise<ScriptDraft> {
+  return await request<ScriptDraft>(`/api/v1/scripts/${scriptId}`);
+}
+
+export async function getScriptByItem(itemId: string): Promise<ScriptDraft | null> {
+  try {
+    return await request<ScriptDraft>(`/api/v1/scripts/item/${itemId}`);
+  } catch {
+    return null;
+  }
+}
+
+export async function updateScriptSection(
+  scriptId: string,
+  sectionId: string,
+  payload: {
+    heading?: string;
+    narration?: string;
+    visual_cue?: string;
+    linked_claim_ids?: string[];
+  }
+): Promise<ScriptDraft> {
+  return await request<ScriptDraft>(
+    `/api/v1/scripts/${scriptId}/sections/${sectionId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export async function refineScriptSection(
+  scriptId: string,
+  sectionId: string,
+  refinementType: RefinementType,
+  guidance?: string
+): Promise<{ refinement: SectionRefineResult; script: ScriptDraft }> {
+  return await request<{ refinement: SectionRefineResult; script: ScriptDraft }>(
+    `/api/v1/scripts/${scriptId}/sections/${sectionId}/refine`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        refinement_type: refinementType,
+        guidance,
+      }),
+    }
+  );
+}
+
+export async function checkScriptQuality(scriptId: string): Promise<ScriptQualityVerdict> {
+  return await request<ScriptQualityVerdict>(
+    `/api/v1/scripts/${scriptId}/quality-check`,
+    { method: "POST" }
+  );
+}
+
+export async function approveScript(
+  scriptId: string,
+  reviewer: string,
+  overrideReason?: string
+): Promise<ScriptDraft> {
+  return await request<ScriptDraft>(
+    `/api/v1/scripts/${scriptId}/approve`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        reviewer,
+        override_reason: overrideReason,
+      }),
+    }
+  );
+}
+
+export async function getScriptRevisions(scriptId: string): Promise<ScriptRevisionSummary[]> {
+  return await request<ScriptRevisionSummary[]>(
+    `/api/v1/scripts/${scriptId}/revisions`
+  );
+}
+
+export async function restoreScriptRevision(
+  scriptId: string,
+  revisionId: string
+): Promise<ScriptDraft> {
+  return await request<ScriptDraft>(
+    `/api/v1/scripts/${scriptId}/revisions/${revisionId}/restore`,
+    { method: "POST" }
+  );
+}
 

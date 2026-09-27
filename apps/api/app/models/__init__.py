@@ -25,6 +25,11 @@ from app.models.content_family import (
     ContentItem,
     ContentItemEvidenceSelection,
 )
+from app.models.script import (
+    ScriptDraft,
+    ScriptSection,
+    ScriptRevision,
+)
 
 __all__ = [
     "Base",
@@ -61,4 +66,8 @@ __all__ = [
     "ContentFamily",
     "ContentItem",
     "ContentItemEvidenceSelection",
+    "ScriptDraft",
+    "ScriptSection",
+    "ScriptRevision",
 ]
+

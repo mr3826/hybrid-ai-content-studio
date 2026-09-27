@@ -1,0 +1,57 @@
+engine:
+  id: content
+  version: 1.0.0
+
+cadence:
+  words_per_second: 2.5 # ~150 words per minute for spoken narration
+  short_vertical_max_duration: 60
+  short_vertical_target_words: 130
+  youtube_long_min_duration: 300
+  youtube_long_target_words: 1200
+  social_post_max_words: 280
+  article_target_words: 800
+
+sections:
+  standard_order:
+    - hook
+    - problem_context
+    - method_test
+    - evidence
+    - result
+    - interpretation
+    - cta
+
+format_templates:
+  short_vertical:
+    sections:
+      - hook
+      - problem_context
+      - evidence
+      - result
+      - cta
+    max_duration_seconds: 60
+  youtube_long:
+    sections:
+      - hook
+      - problem_context
+      - method_test
+      - evidence
+      - result
+      - interpretation
+      - cta
+    max_duration_seconds: 900
+  social_post:
+    sections:
+      - hook
+      - evidence
+      - result
+      - cta
+    max_duration_seconds: 0 # text post
+
+quality_dimensions:
+  min_dimension_score: 70
+  blocking_reasons:
+    - off_niche
+    - critical_brand_failure
+    - unsupported_claim
+    - missing_original_value

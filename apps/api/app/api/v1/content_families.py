@@ -448,6 +448,7 @@ async def get_content_item(
         "angle": item.angle,
         "hook_type": item.hook_type,
         "status": item.status,
+        "script_version_id": item.script_version_id,
         "incremental_cost": item.incremental_cost,
         "manual_time_minutes": item.manual_time_minutes,
         "local_compute_seconds": item.local_compute_seconds,

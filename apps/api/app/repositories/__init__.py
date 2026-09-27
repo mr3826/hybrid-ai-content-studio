@@ -15,6 +15,7 @@ from app.repositories.content_family_repository import (
     ContentFamilyRepository,
     ContentItemRepository,
 )
+from app.repositories.script_repository import ScriptRepository
 
 __all__ = [
     "BaseRepository",
@@ -32,4 +33,6 @@ __all__ = [
     "OriginalityRepository",
     "ContentFamilyRepository",
     "ContentItemRepository",
+    "ScriptRepository",
 ]
+

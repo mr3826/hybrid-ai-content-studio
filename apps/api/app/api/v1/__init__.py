@@ -16,6 +16,7 @@ from app.api.v1.evidence import router as evidence_router
 from app.api.v1.ai import router as ai_router
 from app.api.v1.originality import router as originality_router
 from app.api.v1.content_families import router as content_families_router
+from app.api.v1.scripts import router as scripts_router
 
 api_v1_router = APIRouter()
 api_v1_router.include_router(health_router)
@@ -35,5 +36,6 @@ api_v1_router.include_router(evidence_router)
 api_v1_router.include_router(ai_router)
 api_v1_router.include_router(originality_router)
 api_v1_router.include_router(content_families_router)
+api_v1_router.include_router(scripts_router)
 
 

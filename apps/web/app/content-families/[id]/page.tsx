@@ -541,6 +541,13 @@ export default function ContentFamilyDetailPage() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      <Link
+                        href={`/script-studio/${item.id}`}
+                        className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-purple-600/20 text-purple-300 hover:bg-purple-600/30 border border-purple-500/30 transition-colors"
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        Script Studio
+                      </Link>
                       <button
                         onClick={() => {
                           setTargetChildId(item.id);

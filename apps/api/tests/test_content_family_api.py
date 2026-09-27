@@ -235,13 +235,13 @@ async def test_child_item_validation_and_phase11_invariants(client: AsyncClient)
     assert valid_res.status_code == 201
     item_id = valid_res.json()["id"]
 
-    # 4. Invariant: child CANNOT become SCRIPT_APPROVED in Phase 11
+    # 4. Invariant: SCRIPT_APPROVED cannot be set via direct PATCH (must go through Script Studio approval)
     script_approve_res = await client.patch(
         f"/api/v1/content-items/{item_id}",
         json={"status": "SCRIPT_APPROVED"},
     )
     assert script_approve_res.status_code == 400
-    assert "cannot become SCRIPT_APPROVED" in script_approve_res.json()["detail"]
+    assert "SCRIPT_APPROVED status cannot be set directly" in script_approve_res.json()["detail"]
 
     # 5. Delete child item
     del_res = await client.delete(f"/api/v1/content-items/{item_id}")

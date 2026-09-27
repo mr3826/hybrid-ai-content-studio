@@ -1,0 +1,24 @@
+id: content
+name: Content Engine
+version: 1.0.0
+description: Generates structured, evidence-grounded video scripts and companion posts with section-level refinements and 6-dimension quality gates.
+inputs:
+  - ContentItemInput
+  - ContentFamilyInput
+  - ResearchPacketInput
+  - EvidenceGraphInput
+  - OriginalityPlanInput
+  - BrandProfileInput
+  - NicheProfileInput
+outputs:
+  - ScriptDraftOutput
+  - SectionRefineOutput
+  - ScriptQualityVerdict
+dependencies:
+  - brand
+  - evidence
+  - originality
+capabilities:
+  dry_run: true
+  explain: true
+  health_check: true

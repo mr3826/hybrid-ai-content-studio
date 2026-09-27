@@ -261,10 +261,8 @@ class ContentItemRepository(BaseRepository[ContentItem]):
         viewer_value: str = "",
         claim_ids: Optional[List[str]] = None,
     ) -> ContentItem:
-        if status == "SCRIPT_APPROVED":
-            raise ValueError(
-                "Phase 11 Invariant: A child content item cannot become SCRIPT_APPROVED in this phase. That belongs to Phase 12 Content/Script Studio."
-            )
+        if status not in VALID_CHILD_STATUSES:
+            status = "PLANNED"
 
         item = ContentItem(
             id=str(uuid.uuid4()),
@@ -344,9 +342,14 @@ class ContentItemRepository(BaseRepository[ContentItem]):
         if not item:
             return None
 
+        if kwargs.get("status") and kwargs["status"] not in VALID_CHILD_STATUSES:
+            raise ValueError(f"Invalid child status: {kwargs['status']}")
+
+        # SCRIPT_APPROVED can only be reached through the Script Studio approval gate
         if kwargs.get("status") == "SCRIPT_APPROVED":
             raise ValueError(
-                "Phase 11 Invariant: A child content item cannot become SCRIPT_APPROVED in this phase. That belongs to Phase 12 Content/Script Studio."
+                "SCRIPT_APPROVED status cannot be set directly. "
+                "Use the Script Studio approval flow (POST /scripts/{id}/approve) instead."
             )
 
         for k, v in kwargs.items():
