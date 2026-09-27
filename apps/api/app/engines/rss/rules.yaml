@@ -1,0 +1,19 @@
+version: 1.0.0
+network:
+  timeout_seconds: 10.0
+  max_retries: 3
+  backoff_factor: 1.5
+filtering:
+  max_item_age_hours: 72
+  allowed_languages:
+    - en
+  min_trust_weight: 0.1
+  default_trust_weight: 0.8
+deduplication:
+  title_similarity_threshold: 0.82
+  canonicalize_urls: true
+  use_content_fingerprint: true
+scoring:
+  authority_weight: 0.4
+  recency_weight: 0.3
+  niche_weight: 0.3

@@ -4,6 +4,7 @@ from app.models.brand import BrandProfile, BrandExemplar, BrandMemoryItem, SINGL
 from app.models.platform import PlatformSetting, ALLOWED_PLATFORMS
 from app.models.engine_run import EngineRunRecord
 from app.models.job import StudioJob
+from app.models.rss import RssFeed, DiscoveredCandidate
 
 __all__ = [
     "Base",
@@ -19,4 +20,6 @@ __all__ = [
     "ALLOWED_PLATFORMS",
     "EngineRunRecord",
     "StudioJob",
+    "RssFeed",
+    "DiscoveredCandidate",
 ]

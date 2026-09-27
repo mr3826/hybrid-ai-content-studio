@@ -20,13 +20,21 @@ export default function OpportunitiesPage() {
             Unlocks in <strong>Phase 6</strong> after RSS Discovery (Phase 4) and Trends Engine (Phase 5). Ensure your Single Niche is configured in Settings.
           </p>
         </div>
-        <Link
-          href="/settings"
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
-        >
-          <span>Configure Niche in Settings</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
+        <div className="flex items-center justify-center gap-3">
+          <Link
+            href="/sources"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+          >
+            <span>Explore RSS Sources & Candidates</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+          <Link
+            href="/settings"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+          >
+            <span>Configure Niche</span>
+          </Link>
+        </div>
       </div>
     </div>
   );

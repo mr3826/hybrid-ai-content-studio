@@ -8,11 +8,13 @@ import {
   Film, 
   Cpu, 
   Settings as SettingsIcon,
-  Layers
+  Layers,
+  Rss,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: Layers },
+  { href: "/sources", label: "Sources", icon: Rss },
   { href: "/opportunities", label: "Opportunities", icon: Compass },
   { href: "/projects", label: "Projects", icon: Film },
   { href: "/engines", label: "Engines", icon: Cpu },

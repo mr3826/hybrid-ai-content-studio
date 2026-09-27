@@ -7,6 +7,7 @@ from app.repositories.project_repository import ProjectRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.analytics_repository import AnalyticsRepository
 from app.repositories.asset_repository import AssetRepository
+from app.repositories.feed_repository import FeedRepository
 
 __all__ = [
     "BaseRepository",
@@ -18,4 +19,5 @@ __all__ = [
     "ContentRepository",
     "AnalyticsRepository",
     "AssetRepository",
+    "FeedRepository",
 ]

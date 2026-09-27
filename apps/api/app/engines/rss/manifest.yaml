@@ -1,0 +1,26 @@
+id: rss
+name: RSS Discovery Engine
+version: 1.0.0
+enabled: true
+description: Resilient RSS/Atom source discovery, exact and near-duplicate grouping, freshness filtering, and Niche Guard integration with zero AI calls.
+
+inputs:
+  - SourceFeed
+  - RssRunContext
+
+outputs:
+  - DiscoveryCandidate
+  - RssRunSummary
+
+dependencies:
+  - niche_guard
+
+triggers:
+  - manual
+  - scheduled
+
+supports:
+  dry_run: true
+  explain: true
+  health_check: true
+  configure: true

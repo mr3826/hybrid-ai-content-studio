@@ -499,3 +499,152 @@ export async function evaluateBrandQA(payload: BrandQAInput): Promise<BrandQAVer
   });
 }
 
+// ---------------------------------------------------------------------------
+// Phase 4: RSS Discovery Engine Contracts & Client APIs
+// ---------------------------------------------------------------------------
+
+export interface RssFeed {
+  id: string;
+  name: string;
+  url: string;
+  category: string;
+  trust_weight: number;
+  enabled: boolean;
+  last_success_at?: string | null;
+  last_failure_at?: string | null;
+  failure_count: number;
+  last_error?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CandidateSourceInfo {
+  feed_id?: string | null;
+  feed_name: string;
+  url: string;
+  trust_weight: number;
+  published_at: string;
+}
+
+export interface DiscoveredCandidate {
+  id: string;
+  canonical_url: string;
+  title: string;
+  normalized_title: string;
+  summary: string;
+  content_fingerprint: string;
+  primary_source: string;
+  published_at: string;
+  first_seen_at: string;
+  last_seen_at: string;
+  source_count: number;
+  sources: CandidateSourceInfo[];
+  authority_score: number;
+  pillar?: string | null;
+  niche_score: number;
+  is_in_niche: boolean;
+  niche_verdict: Record<string, any>;
+  status: "candidate" | "rejected" | "promoted_to_opportunity" | string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RssRunResponse {
+  engine_result: {
+    engine_id: string;
+    engine_version: string;
+    rules_version: string;
+    run_id: string;
+    success: boolean;
+    duration_ms: number;
+    input_count: number;
+    output_count: number;
+    rejected_count: number;
+    error_count: number;
+    cost: number;
+    summary: string;
+    outputs: DiscoveredCandidate[];
+    errors: string[];
+    explanations: Array<Record<string, any>>;
+  };
+  explanation: {
+    result_id: string;
+    summary: string;
+    factors: Array<{ factor: string; value: any }>;
+  };
+}
+
+export async function listRssFeeds(enabledOnly: boolean = false): Promise<RssFeed[]> {
+  const query = enabledOnly ? "?enabled_only=true" : "";
+  return await request<RssFeed[]>(`/api/v1/rss/feeds${query}`);
+}
+
+export async function createRssFeed(payload: {
+  name: string;
+  url: string;
+  category?: string;
+  trust_weight?: number;
+  enabled?: boolean;
+}): Promise<RssFeed> {
+  return await request<RssFeed>("/api/v1/rss/feeds", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateRssFeed(
+  id: string,
+  payload: Partial<RssFeed>
+): Promise<RssFeed> {
+  return await request<RssFeed>(`/api/v1/rss/feeds/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteRssFeed(id: string): Promise<void> {
+  await request<void>(`/api/v1/rss/feeds/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function runRssDiscovery(
+  parameters: Record<string, any> = {}
+): Promise<RssRunResponse> {
+  return await request<RssRunResponse>("/api/v1/rss/run", {
+    method: "POST",
+    body: JSON.stringify(parameters),
+  });
+}
+
+export async function dryRunRssDiscovery(
+  parameters: Record<string, any> = {}
+): Promise<RssRunResponse> {
+  return await request<RssRunResponse>("/api/v1/rss/dry-run", {
+    method: "POST",
+    body: JSON.stringify(parameters),
+  });
+}
+
+export async function listDiscoveredCandidates(params?: {
+  status?: string;
+  pillar?: string;
+  in_niche_only?: boolean;
+  limit?: number;
+}): Promise<DiscoveredCandidate[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.pillar) searchParams.set("pillar", params.pillar);
+  if (params?.in_niche_only) searchParams.set("in_niche_only", "true");
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+
+  const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return await request<DiscoveredCandidate[]>(`/api/v1/rss/candidates${qs}`);
+}
+
+export async function getDiscoveredCandidate(
+  id: string
+): Promise<DiscoveredCandidate> {
+  return await request<DiscoveredCandidate>(`/api/v1/rss/candidates/${id}`);
+}
+
