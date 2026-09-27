@@ -2,207 +2,459 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { 
-  CheckCircle2, 
-  AlertCircle, 
-  ExternalLink, 
-  Layers, 
-  Cpu, 
-  ShieldCheck, 
-  Sparkles, 
+import {
+  Compass,
+  Sparkles,
+  Clock,
+  DollarSign,
+  HardDrive,
+  Activity,
+  CheckCircle2,
+  XCircle,
+  Eye,
   ArrowRight,
-  RefreshCw
+  Flame,
+  Zap,
+  TrendingUp,
+  Rss,
+  RefreshCw,
+  AlertCircle,
+  FileSearch,
+  ExternalLink,
 } from "lucide-react";
-import { getStudioStatus, getPlatforms, StudioStatus, PlatformSetting } from "@/lib/api";
+import {
+  CockpitSummary,
+  Opportunity,
+  StudioStatus,
+  getCockpitSummary,
+  getStudioStatus,
+  approveOpportunityResearch,
+  watchOpportunity,
+  rejectOpportunity,
+  runOpportunities,
+} from "@/lib/api";
 
-export default function DashboardPage() {
-  const [status, setStatus] = useState<StudioStatus | null>(null);
-  const [platforms, setPlatforms] = useState<Record<string, PlatformSetting>>({});
+export default function CreatorCockpitPage() {
+  const [summary, setSummary] = useState<CockpitSummary | null>(null);
+  const [studioStatus, setStudioStatus] = useState<StudioStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [runningAnalysis, setRunningAnalysis] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "info" | "error"; text: string } | null>(null);
+
+  const fetchCockpitData = async () => {
+    try {
+      setLoading(true);
+      const [sumData, statusData] = await Promise.all([
+        getCockpitSummary(),
+        getStudioStatus(),
+      ]);
+      setSummary(sumData);
+      setStudioStatus(statusData);
+    } catch (e: any) {
+      console.error("Cockpit load error:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [statusData, platformsData] = await Promise.all([
-          getStudioStatus(),
-          getPlatforms(),
-        ]);
-        if (statusData) setStatus(statusData);
-        if (platformsData) setPlatforms(platformsData);
-      } catch (e) {
-        console.error("Dashboard data load error:", e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
+    fetchCockpitData();
   }, []);
 
+  const handleApprove = async (oppId: string, topicName: string) => {
+    try {
+      await approveOpportunityResearch(oppId);
+      setActionFeedback({
+        type: "success",
+        text: `Approved "${topicName}" for Research. Status is now Research Ready.`,
+      });
+      await fetchCockpitData();
+    } catch (err: any) {
+      setActionFeedback({
+        type: "error",
+        text: `Failed to approve opportunity: ${err.message}`,
+      });
+    }
+  };
+
+  const handleWatch = async (oppId: string, topicName: string) => {
+    try {
+      await watchOpportunity(oppId);
+      setActionFeedback({
+        type: "info",
+        text: `Moved "${topicName}" to Watch list. Monitoring trend momentum.`,
+      });
+      await fetchCockpitData();
+    } catch (err: any) {
+      setActionFeedback({
+        type: "error",
+        text: `Failed to watch opportunity: ${err.message}`,
+      });
+    }
+  };
+
+  const handleReject = async (oppId: string, topicName: string) => {
+    try {
+      await rejectOpportunity(oppId, "Dismissed from Cockpit");
+      setActionFeedback({
+        type: "info",
+        text: `Rejected "${topicName}". Removed from review queue.`,
+      });
+      await fetchCockpitData();
+    } catch (err: any) {
+      setActionFeedback({
+        type: "error",
+        text: `Failed to reject opportunity: ${err.message}`,
+      });
+    }
+  };
+
+  const handleRunOpportunityAnalysis = async () => {
+    try {
+      setRunningAnalysis(true);
+      setActionFeedback({
+        type: "info",
+        text: "Evaluating fresh signals against Niche Guard and Brand memory...",
+      });
+      const res = await runOpportunities();
+      setActionFeedback({
+        type: "success",
+        text: res.summary || "Opportunity intelligence analysis completed!",
+      });
+      await fetchCockpitData();
+    } catch (err: any) {
+      setActionFeedback({
+        type: "error",
+        text: `Analysis failed: ${err.message}`,
+      });
+    } finally {
+      setRunningAnalysis(false);
+    }
+  };
+
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      {/* First-Run Setup Notice Banner if setup is incomplete */}
-      {!loading && status && !status.is_setup_completed && (
-        <div className="p-5 rounded-2xl bg-amber-950/40 border border-amber-800/60 flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0">
-              <AlertCircle className="w-5 h-5" />
+    <div className="max-w-7xl mx-auto space-y-8 pb-12">
+      {/* Cockpit Executive Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-zinc-800 pb-6">
+        <div>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-600/10 border border-indigo-500/20 rounded-xl text-indigo-400">
+              <Compass className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-amber-200">First-Run Setup Required</h2>
-              <p className="text-xs text-amber-300/80 mt-0.5">
-                {!status.niche_configured && !status.brand_configured
-                  ? "Single Niche and Brand profiles must be configured before discovery and content engines unlock."
-                  : !status.niche_configured
-                  ? "Configure your single niche profile in Settings to enable RSS & Trends discovery."
-                  : "Configure your brand profile in Settings to enable content & script generation."}
+              <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
+                Creator Cockpit
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  Human Quality Gate
+                </span>
+              </h1>
+              <p className="text-sm text-zinc-400">
+                Single Niche: <span className="text-zinc-200 font-medium">{studioStatus?.active_niche_name || "Configuring..."}</span>
+                <span className="mx-2 text-zinc-600">|</span>
+                Single Brand: <span className="text-zinc-200 font-medium">{studioStatus?.active_brand_name || "Configuring..."}</span>
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap">
           <Link
-            href="/settings"
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 transition-colors shrink-0"
+            href="/sources"
+            className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium border border-zinc-700 transition flex items-center gap-2"
           >
-            <span>Complete Setup</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            <Rss className="w-4 h-4 text-zinc-400" />
+            Sources
           </Link>
+          <Link
+            href="/trends"
+            className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium border border-zinc-700 transition flex items-center gap-2"
+          >
+            <TrendingUp className="w-4 h-4 text-rose-400" />
+            Trends
+          </Link>
+          <button
+            onClick={handleRunOpportunityAnalysis}
+            disabled={runningAnalysis}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-indigo-600/20 flex items-center gap-2 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${runningAnalysis ? "animate-spin" : ""}`} />
+            Evaluate Opportunities
+          </button>
+        </div>
+      </div>
+
+      {/* Action Notification Banner */}
+      {actionFeedback && (
+        <div
+          className={`p-4 rounded-xl text-sm flex items-start justify-between border ${
+            actionFeedback.type === "success"
+              ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-300"
+              : actionFeedback.type === "error"
+              ? "bg-rose-950/40 border-rose-500/30 text-rose-300"
+              : "bg-blue-950/40 border-blue-500/30 text-blue-300"
+          }`}
+        >
+          <span>{actionFeedback.text}</span>
+          <button
+            onClick={() => setActionFeedback(null)}
+            className="text-xs hover:underline opacity-80"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
-      {/* Hero Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-950 border border-indigo-900/30">
-        <div className="flex items-start justify-between">
+      {/* Decision Metrics Grid (Main Dashboard Requirements) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        {/* Signals Today */}
+        <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+          <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
+            Signals Today
+          </span>
+          <div className="mt-2 text-2xl font-bold text-white">
+            {summary?.signals_today ?? 0}
+          </div>
+        </div>
+
+        {/* Needs Review */}
+        <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-500/30">
+          <span className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider block">
+            Needs Review
+          </span>
+          <div className="mt-2 text-2xl font-bold text-amber-400">
+            {summary?.needs_review ?? 0}
+          </div>
+        </div>
+
+        {/* Research Ready */}
+        <div className="p-4 rounded-xl bg-indigo-950/20 border border-indigo-500/30">
+          <span className="text-[11px] font-semibold text-indigo-400 uppercase tracking-wider block">
+            Research Ready
+          </span>
+          <div className="mt-2 text-2xl font-bold text-indigo-400">
+            {summary?.research_ready ?? 0}
+          </div>
+        </div>
+
+        {/* In Production */}
+        <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+          <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
+            In Production
+          </span>
+          <div className="mt-2 text-2xl font-bold text-sky-400">
+            {summary?.in_production ?? 0}
+          </div>
+        </div>
+
+        {/* Ready to Publish */}
+        <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30">
+          <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block">
+            Ready to Publish
+          </span>
+          <div className="mt-2 text-2xl font-bold text-emerald-400">
+            {summary?.ready_to_publish ?? 0}
+          </div>
+        </div>
+
+        {/* Published */}
+        <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+          <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
+            Published
+          </span>
+          <div className="mt-2 text-2xl font-bold text-zinc-300">
+            {summary?.published ?? 0}
+          </div>
+        </div>
+
+        {/* AI Spend */}
+        <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+          <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block flex items-center gap-1">
+            <DollarSign className="w-3 h-3 text-emerald-400" />
+            AI Spend
+          </span>
+          <div className="mt-2 text-2xl font-bold text-emerald-400">
+            ${summary?.ai_spend.toFixed(2) ?? "0.00"}
+          </div>
+        </div>
+
+        {/* Disk Usage */}
+        <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
+          <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block flex items-center gap-1">
+            <HardDrive className="w-3 h-3 text-zinc-400" />
+            Disk Usage
+          </span>
+          <div className="mt-2 text-2xl font-bold text-zinc-300">
+            {summary?.disk_usage.database_mb ?? 0} MB
+          </div>
+        </div>
+      </div>
+
+      {/* Top Opportunity Section (Mandatory Spec Item) */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-white mb-2">
-              Fresh Local AI Content Studio
-            </h1>
-            <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
-              Converting niche-specific signals into verified, brand-consistent content packages with rigorous human approval gates and local-first execution.
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-indigo-400" />
+              Top Opportunity Decisions
+            </h2>
+            <p className="text-xs text-zinc-400">
+              Ranked by 10-factor opportunity intelligence. Explicit human approval required before research begins.
             </p>
           </div>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
-            Phase 1 Active &bull; Foundation
-          </span>
+          <Link
+            href="/opportunities"
+            className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+          >
+            View All Opportunities
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
+
+        {loading ? (
+          <div className="p-12 text-center text-sm text-zinc-500 flex items-center justify-center gap-2">
+            <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
+            Loading high-priority opportunities...
+          </div>
+        ) : summary?.top_opportunities && summary.top_opportunities.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {summary.top_opportunities.map((opp) => (
+              <div
+                key={opp.id}
+                className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-6 flex flex-col justify-between space-y-5 hover:border-zinc-700 transition"
+              >
+                <div className="space-y-3.5">
+                  {/* Score & Pillar Header */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="px-2.5 py-1 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-sm font-bold flex items-center gap-1">
+                        <Compass className="w-3.5 h-3.5" />
+                        <span>{Math.round(opp.opportunity_score)}/100</span>
+                      </div>
+                      <div className="px-2 py-0.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold flex items-center gap-1">
+                        <Flame className="w-3 h-3" />
+                        <span>Trend: {Math.round(opp.trend_score)}</span>
+                      </div>
+                    </div>
+
+                    {opp.pillar && (
+                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-400 font-medium border border-zinc-700">
+                        {opp.pillar}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Topic Title */}
+                  <h3 className="text-base font-bold text-white tracking-tight leading-snug line-clamp-2">
+                    {opp.topic}
+                  </h3>
+
+                  {/* Original Test Angle / Idea */}
+                  <div className="p-3 rounded-xl bg-zinc-950/80 border border-zinc-800/80 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 font-mono">
+                      Original Test Idea:
+                    </span>
+                    <p className="text-xs text-zinc-300 leading-relaxed font-mono">
+                      {opp.suggested_original_angle}
+                    </p>
+                  </div>
+
+                  {/* Content Family & Estimates */}
+                  <div className="flex items-center justify-between text-xs text-zinc-400 pt-1">
+                    <span className="font-medium text-zinc-300">
+                      Family: {opp.suggested_content_family}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span>Effort: <strong className="text-zinc-200 capitalize">{opp.production_effort}</strong></span>
+                      <span>Cost: <strong className="text-emerald-400">${opp.estimated_cost.toFixed(2)}</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Human Gate Decision Buttons (Mandatory Spec Item) */}
+                <div className="pt-4 border-t border-zinc-800/80 flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => handleApprove(opp.id, opp.topic)}
+                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Research
+                  </button>
+
+                  <button
+                    onClick={() => handleWatch(opp.id, opp.topic)}
+                    className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-xs font-semibold border border-zinc-700 transition flex items-center justify-center gap-1.5"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-amber-400" />
+                    Watch
+                  </button>
+
+                  <button
+                    onClick={() => handleReject(opp.id, opp.topic)}
+                    className="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-rose-400 rounded-lg border border-zinc-700 transition"
+                    title="Reject topic"
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 rounded-2xl border border-dashed border-zinc-800 text-center space-y-3">
+            <Compass className="w-10 h-10 text-zinc-600 mx-auto" />
+            <h4 className="text-sm font-semibold text-white">No active opportunities in review</h4>
+            <p className="text-xs text-zinc-400 max-w-sm mx-auto">
+              Run Opportunity intelligence analysis on discovered RSS candidates and trend topics to generate new proposals.
+            </p>
+            <button
+              onClick={handleRunOpportunityAnalysis}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition"
+            >
+              Analyze Opportunities Now
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Metrics & Quality Gates Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Niche Card */}
-        <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-medium uppercase tracking-wider">Active Niche</span>
-            <ShieldCheck className={`w-4 h-4 ${status?.niche_configured ? "text-emerald-400" : "text-amber-400"}`} />
+      {/* Engine Health Summary Bar */}
+      <div className="p-5 rounded-2xl bg-zinc-900/40 border border-zinc-800 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-indigo-400" />
+            <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-300">
+              Engine Health Summary
+            </h4>
           </div>
-          <div className="text-base font-semibold text-white truncate">
-            {status?.active_niche_name || "Unconfigured"}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">
-            {status?.niche_configured ? "Single-Niche Locked" : "Setup needed"}
-          </div>
+          <Link
+            href="/engines"
+            className="text-xs font-medium text-zinc-400 hover:text-white flex items-center gap-1"
+          >
+            Configure Engines
+            <ArrowRight className="w-3 h-3" />
+          </Link>
         </div>
 
-        {/* Brand Card */}
-        <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-medium uppercase tracking-wider">Brand DNA</span>
-            <Layers className={`w-4 h-4 ${status?.brand_configured ? "text-indigo-400" : "text-amber-400"}`} />
-          </div>
-          <div className="text-base font-semibold text-white truncate">
-            {status?.active_brand_name || "Unconfigured"}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">
-            {status?.brand_configured ? "Brand Consistency Active" : "Setup needed"}
-          </div>
-        </div>
-
-        {/* Discovery Gate */}
-        <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-medium uppercase tracking-wider">Discovery Gate</span>
-            <Cpu className={`w-4 h-4 ${status?.discovery_ready ? "text-emerald-400" : "text-slate-600"}`} />
-          </div>
-          <div className="text-base font-semibold text-white">
-            {status?.discovery_ready ? "Ready" : "Blocked (Niche)"}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">RSS & Trends Guard</div>
-        </div>
-
-        {/* Content Gate */}
-        <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-xs font-medium uppercase tracking-wider">Content Gate</span>
-            <Sparkles className={`w-4 h-4 ${status?.generation_ready ? "text-emerald-400" : "text-slate-600"}`} />
-          </div>
-          <div className="text-base font-semibold text-white">
-            {status?.generation_ready ? "Ready" : "Blocked (Brand)"}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">Brand QA & Scripts</div>
-        </div>
-      </div>
-
-      {/* Two Column Layout: Invariants & Platform Launchers */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Core Invariants Card */}
-        <div className="p-6 rounded-xl bg-slate-900/50 border border-slate-800 space-y-4">
-          <h2 className="text-base font-semibold text-white flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-indigo-400" />
-            Architectural Guarantees
-          </h2>
-          <ul className="space-y-3 text-sm text-slate-300">
-            <li className="flex items-start gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span><strong>One Niche Only:</strong> Dedicated focus; multi-tenant workspace clutter is strictly forbidden.</span>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span><strong>One Brand Voice:</strong> Strict vocabulary rules, banned hype clichés, and claim standards.</span>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span><strong>Human Quality Gates:</strong> Mandatory human verification at topic, research, and script stages.</span>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <span><strong>Zero CI/CD & No n8n:</strong> 100% local operation with SQLite WAL and dedicated worker daemon.</span>
-            </li>
-          </ul>
-        </div>
-
-        {/* Platform Launchers Card */}
-        <div className="p-6 rounded-xl bg-slate-900/50 border border-slate-800 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-white flex items-center gap-2">
-              <ExternalLink className="w-5 h-5 text-indigo-400" />
-              Platform Launchers (Manual V1)
-            </h2>
-            <Link href="/settings" className="text-xs text-indigo-400 hover:text-indigo-300">
-              Configure URLs &rarr;
-            </Link>
-          </div>
-          <p className="text-xs text-slate-400">
-            One-click HTTPS new-tab launchers for direct upload in authenticated browser sessions.
-          </p>
-
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            {["youtube", "facebook", "instagram", "tiktok"].map((pName) => {
-              const p = platforms[pName];
-              const targetUrl = p?.publishing_url || p?.channel_url || "https://studio.youtube.com/";
-
-              return (
-                <a
-                  key={pName}
-                  href={targetUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-between p-3 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-xs font-medium text-slate-200 border border-slate-700/60 transition-colors"
-                >
-                  <span className="capitalize">{pName}</span>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-                </a>
-              );
-            })}
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
+          {summary?.engine_health_summary && summary.engine_health_summary.length > 0 ? (
+            summary.engine_health_summary.map((eng) => (
+              <div
+                key={eng.id}
+                className="p-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800/80 flex items-center justify-between text-xs"
+              >
+                <span className="font-medium text-zinc-300 truncate mr-2">{eng.name}</span>
+                <span
+                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                    eng.status === "healthy"
+                      ? "bg-emerald-400 shadow-sm shadow-emerald-500/50"
+                      : "bg-amber-400"
+                  }`}
+                  title={`${eng.name}: ${eng.status}`}
+                />
+              </div>
+            ))
+          ) : (
+            <div className="text-xs text-zinc-500 col-span-full">Engine catalog initializing...</div>
+          )}
         </div>
       </div>
     </div>

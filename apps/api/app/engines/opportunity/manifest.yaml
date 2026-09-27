@@ -1,0 +1,25 @@
+id: opportunity
+name: Opportunity Scoring Engine
+version: 1.0.0
+description: Determines whether topics are worth creating for this channel via 10-factor editable scoring dimensions, originality angle generation, content family matching, and risk analysis.
+enabled: true
+inputs:
+  - DiscoveryCandidate
+  - TrendTopic
+  - NicheProfile
+  - BrandProfile
+outputs:
+  - Opportunity
+  - OpportunityScore
+dependencies:
+  - niche_guard
+  - trends
+triggers:
+  - manual
+  - scheduled
+  - worker
+supports:
+  dry_run: true
+  explain: true
+  health_check: true
+  configure: true

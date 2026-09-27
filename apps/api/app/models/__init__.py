@@ -6,6 +6,7 @@ from app.models.engine_run import EngineRunRecord
 from app.models.job import StudioJob
 from app.models.rss import RssFeed, DiscoveredCandidate
 from app.models.trend import TrendTopic, TrendHistory
+from app.models.opportunity import Opportunity
 
 __all__ = [
     "Base",
@@ -25,4 +26,5 @@ __all__ = [
     "DiscoveredCandidate",
     "TrendTopic",
     "TrendHistory",
+    "Opportunity",
 ]

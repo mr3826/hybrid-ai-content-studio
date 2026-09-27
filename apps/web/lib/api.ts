@@ -792,4 +792,147 @@ export async function createManualSignal(payload: {
   });
 }
 
+// ---------------------------------------------------------
+// Opportunity Intelligence & Creator Cockpit Contracts & API
+// ---------------------------------------------------------
+
+export interface OpportunityScoreBreakdown {
+  niche_fit: number;
+  original_value: number;
+  audience_usefulness: number;
+  evergreen_value: number;
+  trend_momentum: number;
+  commercial_fit: number;
+  content_family_potential: number;
+  sponsor_relevance: number;
+  production_effort_score: number;
+  saturation_penalty: number;
+  raw_score: number;
+  final_score: number;
+}
+
+export interface Opportunity {
+  id: string;
+  topic: string;
+  slug: string;
+  candidate_id?: string | null;
+  trend_id?: string | null;
+  pillar?: string | null;
+  status: "needs_review" | "watching" | "rejected" | "approved" | "research_ready" | "in_production" | "ready_to_publish" | "published";
+  opportunity_score: number;
+  trend_score: number;
+  niche_fit_score: number;
+  originality_potential: number;
+  audience_usefulness: number;
+  evergreen_value: number;
+  commercial_fit: number;
+  content_family_potential: number;
+  sponsor_relevance: number;
+  saturation_penalty: number;
+  production_effort: "low" | "medium" | "high";
+  estimated_cost: number;
+  estimated_time_minutes: number;
+  suggested_original_angle: string;
+  suggested_content_family: string;
+  risks: string[];
+  why: string;
+  recommended_action: "Research" | "Watch" | "Reject";
+  score_breakdown: OpportunityScoreBreakdown;
+  source_references: Array<Record<string, any>>;
+  rejection_reason?: string | null;
+  reviewed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CockpitSummary {
+  signals_today: number;
+  needs_review: number;
+  watching: number;
+  research_ready: number;
+  in_production: number;
+  ready_to_publish: number;
+  published: number;
+  ai_spend: number;
+  disk_usage: {
+    database_bytes: number;
+    database_mb: number;
+    media_bytes: number;
+    media_mb: number;
+  };
+  top_opportunities: Opportunity[];
+  engine_health_summary: Array<{
+    id: string;
+    name: string;
+    status: string;
+    message: string;
+  }>;
+}
+
+export async function listOpportunities(params?: {
+  status?: string;
+  pillar?: string;
+  min_score?: number;
+  content_family?: string;
+  sort_by?: "opportunity_score" | "trend_score" | "originality" | "recency";
+  limit?: number;
+}): Promise<Opportunity[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.pillar) searchParams.set("pillar", params.pillar);
+  if (params?.min_score !== undefined) searchParams.set("min_score", params.min_score.toString());
+  if (params?.content_family) searchParams.set("content_family", params.content_family);
+  if (params?.sort_by) searchParams.set("sort_by", params.sort_by);
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+
+  const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return await request<Opportunity[]>(`/api/v1/opportunities${qs}`);
+}
+
+export async function getOpportunity(id: string): Promise<Opportunity> {
+  return await request<Opportunity>(`/api/v1/opportunities/${id}`);
+}
+
+export async function getOpportunityExplain(id: string): Promise<any> {
+  return await request<any>(`/api/v1/opportunities/${id}/explain`);
+}
+
+export async function runOpportunities(parameters: Record<string, any> = {}): Promise<EngineResult> {
+  return await request<EngineResult>("/api/v1/opportunities/run", {
+    method: "POST",
+    body: JSON.stringify(parameters),
+  });
+}
+
+export async function dryRunOpportunities(parameters: Record<string, any> = {}): Promise<EngineResult> {
+  return await request<EngineResult>("/api/v1/opportunities/dry-run", {
+    method: "POST",
+    body: JSON.stringify(parameters),
+  });
+}
+
+export async function approveOpportunityResearch(id: string): Promise<Opportunity> {
+  return await request<Opportunity>(`/api/v1/opportunities/${id}/research`, {
+    method: "POST",
+  });
+}
+
+export async function watchOpportunity(id: string): Promise<Opportunity> {
+  return await request<Opportunity>(`/api/v1/opportunities/${id}/watch`, {
+    method: "POST",
+  });
+}
+
+export async function rejectOpportunity(id: string, rejection_reason?: string): Promise<Opportunity> {
+  return await request<Opportunity>(`/api/v1/opportunities/${id}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ rejection_reason }),
+  });
+}
+
+export async function getCockpitSummary(): Promise<CockpitSummary> {
+  return await request<CockpitSummary>("/api/v1/opportunities/cockpit/summary");
+}
+
+
 

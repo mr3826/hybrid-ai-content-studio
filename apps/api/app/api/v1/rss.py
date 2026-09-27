@@ -192,7 +192,7 @@ async def list_candidates(
     db: AsyncSession = Depends(get_db),
 ):
     repo = OpportunityRepository(db)
-    return await repo.list_opportunities(
+    return await repo.list_candidates(
         status=status,
         pillar=pillar,
         in_niche_only=in_niche_only,
