@@ -11,7 +11,7 @@
 | **Phase 5** | Independent Trends Engine | PASS | `af0dcb8` | 68 pytest passed, web build passed | Cross-source momentum, velocity tracking, zero paid APIs, explainability |
 | **Phase 6** | Opportunity Engine + Creator Cockpit | PASS | `cab07fc` | 75 pytest passed, web build passed | 10 editable dimensions, original angles, Creator Cockpit & human gate |
 | **Phase 7** | Evidence-Based Research Engine | PASS | `0105f36` | 84 pytest passed, web build passed | Traceable Research Packets with sources, claims, contradictions, and versioned revisions |
-| **Phase 8** | Evidence / Provenance Engine | NOT_STARTED | - | - | Prerequisite: Phase 7 pass |
+| **Phase 8** | Evidence / Provenance Engine | PASS | `8583cef` | 89 pytest passed, web build passed | Provenance graph, claims classification, coverage gate, and empirical experiments |
 | **Phase 9** | Pluggable AI Provider Engine | NOT_STARTED | - | - | Prerequisite: Phase 8 pass |
 | **Phase 10** | Originality & Experiment Workspace | NOT_STARTED | - | - | Prerequisite: Phase 9 pass |
 | **Phase 11** | Content Family Engine | NOT_STARTED | - | - | Prerequisite: Phase 10 pass |
