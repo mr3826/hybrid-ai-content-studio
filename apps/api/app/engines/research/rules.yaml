@@ -1,0 +1,57 @@
+rules_version: "1.0.0"
+min_primary_sources: 1
+max_sources_to_process: 15
+
+confidence_thresholds:
+  high: 0.90
+  medium: 0.75
+  low: 0.50
+
+uncertainty_keywords:
+  - "might"
+  - "may"
+  - "alleged"
+  - "allegedly"
+  - "rumored"
+  - "unconfirmed"
+  - "claimed without proof"
+  - "could"
+  - "tentatively"
+  - "speculated"
+  - "reportedly"
+  - "unverified"
+  - "pending verification"
+  - "early preview"
+  - "purportedly"
+  - "supposedly"
+  - "sources claim"
+  - "unclear whether"
+
+hype_patterns:
+  - pattern: "100% bug[- ]?free"
+    reason: "Absolute claim: Software is rarely defect-free; claims of 100% reliability damage audience trust."
+  - pattern: "completely replaces (human |all )?engineers"
+    reason: "Exaggerated replacement claim: Tools augment rather than wholesale eliminate engineering workflows."
+  - pattern: "infinitely scalable"
+    reason: "Hyperbolic claim: All systems encounter hardware, network, or cost saturation boundaries."
+  - pattern: "fastest (tool|engine|model|framework) in the world"
+    reason: "Unsubstantiated superlative: Requires independent third-party benchmark verification."
+  - pattern: "zero (latency|overhead|cost)"
+    reason: "Misleading absolute: Operating overhead and latency exist on physical hardware."
+  - pattern: "flawless accuracy"
+    reason: "Probabilistic models and systems exhibit error rates; flawless claims are unverifiable."
+  - pattern: "revolutionizes everything"
+    reason: "Marketing fluff with zero informational value for technical creators."
+
+claim_verification_requirements:
+  source_backed_requires:
+    - "evidence_quote"
+    - "source_url"
+  explicitly_uncertain_requires:
+    - "uncertainty_reason"
+  manually_entered_requires:
+    - "labeled_as_manual"
+
+contradiction_detection:
+  enabled: true
+  metric_discrepancy_threshold: 0.20

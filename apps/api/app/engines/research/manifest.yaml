@@ -1,0 +1,22 @@
+id: research
+name: Research Engine
+version: 1.0.0
+description: Creates traceable, evidence-grounded research packets from opportunities or source articles, extracting verified facts, metrics, dates, and claims with strict source attribution.
+enabled: true
+inputs:
+  - Opportunity
+  - DiscoveredCandidate
+  - SourceReference
+outputs:
+  - ResearchPacket
+  - ResearchRevision
+dependencies:
+  - opportunity
+triggers:
+  - manual
+  - worker
+supports:
+  dry_run: true
+  explain: true
+  health_check: true
+  configure: true

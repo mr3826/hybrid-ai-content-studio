@@ -28,7 +28,6 @@ from app.engines.trends.scoring import (
 )
 from app.models.niche import NicheProfile, SINGLETON_NICHE_ID
 from app.models.trend import TrendTopic
-from app.repositories.trend_repository import TrendRepository
 
 
 class TrendsEngine(BaseEngine):
@@ -114,6 +113,7 @@ class TrendsEngine(BaseEngine):
                     similarity_threshold=float(self.rules.get("clustering", {}).get("entity_overlap_threshold", 0.35)),
                 )
 
+                from app.repositories.trend_repository import TrendRepository
                 repo = TrendRepository(session)
 
                 # Build TrendClusters

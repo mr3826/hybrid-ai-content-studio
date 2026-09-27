@@ -7,6 +7,7 @@ from app.models.job import StudioJob
 from app.models.rss import RssFeed, DiscoveredCandidate
 from app.models.trend import TrendTopic, TrendHistory
 from app.models.opportunity import Opportunity
+from app.models.research import ResearchPacket, ResearchRevision
 
 __all__ = [
     "Base",
@@ -27,4 +28,6 @@ __all__ = [
     "TrendTopic",
     "TrendHistory",
     "Opportunity",
+    "ResearchPacket",
+    "ResearchRevision",
 ]

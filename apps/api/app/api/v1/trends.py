@@ -234,6 +234,13 @@ async def create_manual_signal(
 
     # Return the newly created/updated topic
     repo = TrendRepository(db)
+    if result.outputs:
+        topic_key = result.outputs[0].get("topic_key")
+        if topic_key:
+            topic = await repo.get_by_key(topic_key)
+            if topic:
+                return topic
+
     topics = await repo.list_topics(limit=1, sort_by="recency")
     if topics:
         return topics[0]

@@ -21,7 +21,7 @@ export default function RootLayout({
           <header className="h-14 border-b border-slate-800 bg-slate-900/40 px-6 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                Phase 0: Greenfield Bootstrap
+                Fresh Local AI Content Studio
               </span>
             </div>
             <HealthBadge />

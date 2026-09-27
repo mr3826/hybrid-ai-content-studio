@@ -11,6 +11,7 @@ import {
   Layers,
   Rss,
   TrendingUp,
+  BookOpen,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
   { href: "/sources", label: "Sources", icon: Rss },
   { href: "/trends", label: "Trends", icon: TrendingUp },
   { href: "/opportunities", label: "Opportunities", icon: Compass },
+  { href: "/research", label: "Research", icon: BookOpen },
   { href: "/projects", label: "Projects", icon: Film },
   { href: "/engines", label: "Engines", icon: Cpu },
   { href: "/settings", label: "Settings", icon: SettingsIcon },

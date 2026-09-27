@@ -7,6 +7,7 @@ from app.engines.brand.engine import BrandEngine
 from app.engines.rss.engine import RssEngine
 from app.engines.trends.engine import TrendsEngine
 from app.engines.opportunity.engine import OpportunityEngine
+from app.engines.research.engine import ResearchEngine
 
 CATALOG_DEFINITIONS = [
 
@@ -166,9 +167,12 @@ def register_all_catalog_engines() -> None:
     opportunity_engine = OpportunityEngine()
     engine_registry.register(opportunity_engine, replace=True)
 
+    research_engine = ResearchEngine()
+    engine_registry.register(research_engine, replace=True)
+
     # Register remaining catalog engines as placeholders if not already registered
     for d in CATALOG_DEFINITIONS:
-        if d["id"] in ("niche_guard", "brand", "rss", "trends", "opportunity"):
+        if d["id"] in ("niche_guard", "brand", "rss", "trends", "opportunity", "research"):
             continue
         if not engine_registry.get(d["id"]):
             manifest = EngineManifest(**d)

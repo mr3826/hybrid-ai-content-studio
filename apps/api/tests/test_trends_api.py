@@ -37,7 +37,7 @@ async def test_trends_api_lifecycle(client: AsyncClient):
     assert "mention" in expl["summary"].lower()
 
     # 4. List Trends with Filter
-    list_res = await client.get("/api/v1/trends?sort_by=trend_score&limit=10")
+    list_res = await client.get("/api/v1/trends?sort_by=trend_score&limit=100")
     assert list_res.status_code == 200
     items = list_res.json()
     assert len(items) >= 1

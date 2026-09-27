@@ -934,5 +934,172 @@ export async function getCockpitSummary(): Promise<CockpitSummary> {
   return await request<CockpitSummary>("/api/v1/opportunities/cockpit/summary");
 }
 
+export interface SourceReference {
+  url: string;
+  title: string;
+  domain: string;
+  excerpt?: string;
+  trust_weight: number;
+  published_at?: string | null;
+}
+
+export interface FactItem {
+  id: string;
+  text: string;
+  source_url: string;
+  source_title?: string | null;
+  confidence: number;
+}
+
+export interface NumberMetric {
+  id: string;
+  metric: string;
+  value: string;
+  unit?: string | null;
+  context: string;
+  source_url: string;
+}
+
+export interface DateItem {
+  id: string;
+  event: string;
+  date_str: string;
+  source_url: string;
+}
+
+export interface EntityItem {
+  id: string;
+  name: string;
+  type: string;
+  relevance: number;
+  source_url?: string | null;
+}
+
+export interface ClaimItem {
+  id: string;
+  claim_text: string;
+  verification_status: "source-backed" | "explicitly_uncertain" | "manually_entered";
+  evidence_quote?: string | null;
+  source_url?: string | null;
+  uncertainty_reason?: string | null;
+  confidence: number;
+}
+
+export interface ContradictionItem {
+  id: string;
+  claim_a: string;
+  source_a: string;
+  claim_b: string;
+  source_b: string;
+  conflict_summary: string;
+}
+
+export interface UncertainClaimItem {
+  id: string;
+  claim_text: string;
+  uncertainty_reason: string;
+}
+
+export interface ThingNotToClaimItem {
+  id: string;
+  claim_text: string;
+  reason_to_avoid: string;
+  flagged_source?: string | null;
+}
+
+export interface ResearchRevision {
+  id: string;
+  packet_id: string;
+  revision_number: number;
+  changed_by: string;
+  change_summary: string;
+  snapshot: Record<string, any>;
+  created_at: string;
+}
+
+export interface ResearchPacket {
+  id: string;
+  opportunity_id?: string | null;
+  topic: string;
+  slug: string;
+  summary: string;
+  primary_sources: SourceReference[];
+  supporting_sources: SourceReference[];
+  facts: FactItem[];
+  numbers: NumberMetric[];
+  dates: DateItem[];
+  entities: EntityItem[];
+  claims: ClaimItem[];
+  contradictions: ContradictionItem[];
+  uncertain_claims: UncertainClaimItem[];
+  things_not_to_claim: ThingNotToClaimItem[];
+  version: number;
+  is_verified: boolean;
+  verified_at?: string | null;
+  verified_by?: string | null;
+  revisions?: ResearchRevision[];
+  created_at: string;
+  updated_at: string;
+}
+
+export async function listResearchPackets(params?: {
+  opportunity_id?: string;
+  is_verified?: boolean;
+  search?: string;
+  limit?: number;
+}): Promise<ResearchPacket[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.opportunity_id) searchParams.set("opportunity_id", params.opportunity_id);
+  if (params?.is_verified !== undefined) searchParams.set("is_verified", params.is_verified.toString());
+  if (params?.search) searchParams.set("search", params.search);
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+
+  const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return await request<ResearchPacket[]>(`/api/v1/research/packets${qs}`);
+}
+
+export async function getResearchPacket(id: string): Promise<ResearchPacket> {
+  return await request<ResearchPacket>(`/api/v1/research/packets/${id}`);
+}
+
+export async function createResearchPacket(payload: {
+  opportunity_id?: string;
+  topic?: string;
+  sources?: any[];
+  raw_text?: string;
+  context?: string;
+}): Promise<ResearchPacket> {
+  return await request<ResearchPacket>("/api/v1/research/packets", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateResearchPacket(
+  id: string,
+  updates: Partial<ResearchPacket> & { changed_by?: string; change_summary?: string }
+): Promise<ResearchPacket> {
+  return await request<ResearchPacket>(`/api/v1/research/packets/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function verifyResearchPacket(id: string): Promise<ResearchPacket> {
+  return await request<ResearchPacket>(`/api/v1/research/packets/${id}/verify`, {
+    method: "POST",
+  });
+}
+
+export async function getResearchRevisions(id: string): Promise<ResearchRevision[]> {
+  return await request<ResearchRevision[]>(`/api/v1/research/packets/${id}/revisions`);
+}
+
+export async function revertResearchRevision(id: string, revisionNumber: number): Promise<ResearchPacket> {
+  return await request<ResearchPacket>(`/api/v1/research/packets/${id}/revert/${revisionNumber}`, {
+    method: "POST",
+  });
+}
+
 
 
