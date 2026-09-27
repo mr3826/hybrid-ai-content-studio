@@ -1,0 +1,18 @@
+id: evidence
+name: Evidence Engine
+version: 1.0.0
+rules_version: 1.0.0
+description: Manages evidence graphs, provenance traceability (Source -> Claim -> Experiment -> Conclusion -> Script), and coverage gates.
+inputs:
+  - ResearchPacket
+  - ExperimentRecord
+  - ScriptClaims
+outputs:
+  - ProvenanceGraph
+  - EvidenceCoverageReport
+  - QualityGateDecision
+dependencies:
+  - research
+triggers:
+  - manual
+  - script_qa

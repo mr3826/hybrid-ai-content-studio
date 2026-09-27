@@ -8,6 +8,16 @@ from app.models.rss import RssFeed, DiscoveredCandidate
 from app.models.trend import TrendTopic, TrendHistory
 from app.models.opportunity import Opportunity
 from app.models.research import ResearchPacket, ResearchRevision
+from app.models.evidence import (
+    EvidenceSource,
+    Claim,
+    ClaimEvidence,
+    Experiment,
+    ExperimentRun,
+    Measurement,
+    Conclusion,
+    ContentClaim,
+)
 
 __all__ = [
     "Base",
@@ -30,4 +40,12 @@ __all__ = [
     "Opportunity",
     "ResearchPacket",
     "ResearchRevision",
+    "EvidenceSource",
+    "Claim",
+    "ClaimEvidence",
+    "Experiment",
+    "ExperimentRun",
+    "Measurement",
+    "Conclusion",
+    "ContentClaim",
 ]

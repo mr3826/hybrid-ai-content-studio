@@ -8,6 +8,7 @@ from app.engines.rss.engine import RssEngine
 from app.engines.trends.engine import TrendsEngine
 from app.engines.opportunity.engine import OpportunityEngine
 from app.engines.research.engine import ResearchEngine
+from app.engines.evidence.engine import EvidenceEngine
 
 CATALOG_DEFINITIONS = [
 
@@ -70,6 +71,16 @@ CATALOG_DEFINITIONS = [
         "outputs": ["ResearchPacket"],
         "dependencies": [],
         "triggers": ["manual"],
+    },
+    {
+        "id": "evidence",
+        "name": "Evidence Engine",
+        "version": "1.0.0",
+        "description": "Maintains provenance graph, claims verification, and coverage quality gates.",
+        "inputs": ["ResearchPacket", "ExperimentRecord", "ScriptClaims"],
+        "outputs": ["ProvenanceGraph", "EvidenceCoverageReport"],
+        "dependencies": ["research"],
+        "triggers": ["manual", "script_qa"],
     },
     {
         "id": "originality",
@@ -170,9 +181,12 @@ def register_all_catalog_engines() -> None:
     research_engine = ResearchEngine()
     engine_registry.register(research_engine, replace=True)
 
+    evidence_engine = EvidenceEngine()
+    engine_registry.register(evidence_engine, replace=True)
+
     # Register remaining catalog engines as placeholders if not already registered
     for d in CATALOG_DEFINITIONS:
-        if d["id"] in ("niche_guard", "brand", "rss", "trends", "opportunity", "research"):
+        if d["id"] in ("niche_guard", "brand", "rss", "trends", "opportunity", "research", "evidence"):
             continue
         if not engine_registry.get(d["id"]):
             manifest = EngineManifest(**d)

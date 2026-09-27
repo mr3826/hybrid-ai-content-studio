@@ -1101,5 +1101,277 @@ export async function revertResearchRevision(id: string, revisionNumber: number)
   });
 }
 
+// ---------------------------------------------------------------------------
+// Evidence & Provenance API
+// ---------------------------------------------------------------------------
+
+export type ClaimType =
+  | "external_fact"
+  | "original_measurement"
+  | "derived_conclusion"
+  | "opinion"
+  | "prediction_speculation";
+
+export type VerificationStatus =
+  | "verified"
+  | "unsupported"
+  | "labeled_opinion"
+  | "overridden";
+
+export interface EvidenceSource {
+  id: string;
+  url: string;
+  title: string;
+  domain: string;
+  source_type: "primary" | "supporting" | "experiment";
+  trust_weight: number;
+  author?: string | null;
+  published_at?: string | null;
+  created_at: string;
+}
+
+export interface Claim {
+  id: string;
+  packet_id?: string | null;
+  text: string;
+  claim_type: ClaimType;
+  confidence: number;
+  is_verified: boolean;
+  evidence_count?: number;
+  created_at: string;
+}
+
+export interface ProvenanceSourceNode {
+  source_id?: string | null;
+  url: string;
+  title: string;
+  domain: string;
+  source_type: string;
+  trust_weight: number;
+  quote?: string | null;
+  confidence: number;
+}
+
+export interface ProvenanceMeasurementNode {
+  metric: string;
+  value: number;
+  unit?: string | null;
+  context?: string | null;
+}
+
+export interface ProvenanceRunNode {
+  run_id: string;
+  run_number: number;
+  cost_usd: number;
+  execution_time_ms: number;
+  status: string;
+  measurements: ProvenanceMeasurementNode[];
+}
+
+export interface ProvenanceExperimentNode {
+  experiment_id: string;
+  title: string;
+  hypothesis: string;
+  method: string;
+  conclusion_summary?: string | null;
+  confidence: number;
+  runs: ProvenanceRunNode[];
+}
+
+export interface ProvenanceContentUsageNode {
+  content_claim_id: string;
+  content_id: string;
+  section_id: string;
+  quote_in_script: string;
+  verification_status: VerificationStatus;
+  is_overridden: boolean;
+  override_reason?: string | null;
+}
+
+export interface ProvenanceTrace {
+  claim_id: string;
+  claim_text: string;
+  claim_type: ClaimType;
+  is_verified: boolean;
+  confidence: number;
+  sources: ProvenanceSourceNode[];
+  experiments: ProvenanceExperimentNode[];
+  content_usages: ProvenanceContentUsageNode[];
+}
+
+export interface CoverageReport {
+  total_claims: number;
+  factual_claims: number;
+  primary_source_backed: number;
+  supporting_source_backed: number;
+  original_test_backed: number;
+  opinions_labeled: number;
+  overridden_count: number;
+  unsupported: number;
+  coverage_percent: number;
+  gate_passed: boolean;
+  explanation?: string | null;
+}
+
+export interface Experiment {
+  id: string;
+  title: string;
+  hypothesis: string;
+  method: string;
+  opportunity_id?: string | null;
+  run_count?: number;
+  conclusions_count?: number;
+  runs?: any[];
+  conclusions?: any[];
+  created_at: string;
+}
+
+export async function listClaims(params?: {
+  packet_id?: string;
+  claim_type?: string;
+  is_verified?: boolean;
+  limit?: number;
+}): Promise<Claim[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.packet_id) searchParams.set("packet_id", params.packet_id);
+  if (params?.claim_type) searchParams.set("claim_type", params.claim_type);
+  if (params?.is_verified !== undefined) searchParams.set("is_verified", params.is_verified.toString());
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+
+  const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return await request<Claim[]>(`/api/v1/evidence/claims${qs}`);
+}
+
+export async function getClaim(claimId: string): Promise<any> {
+  return await request<any>(`/api/v1/evidence/claims/${claimId}`);
+}
+
+export async function getClaimProvenance(claimId: string): Promise<ProvenanceTrace> {
+  return await request<ProvenanceTrace>(`/api/v1/evidence/claims/${claimId}/provenance`);
+}
+
+export async function createClaim(payload: {
+  text: string;
+  claim_type?: ClaimType;
+  confidence?: number;
+  packet_id?: string;
+  is_verified?: boolean;
+}): Promise<Claim> {
+  return await request<Claim>("/api/v1/evidence/claims", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function linkSourceEvidence(
+  claimId: string,
+  payload: {
+    source_url?: string;
+    source_title?: string;
+    source_type?: string;
+    trust_weight?: number;
+    quote: string;
+    confidence?: number;
+    notes?: string;
+  }
+): Promise<any> {
+  return await request<any>(`/api/v1/evidence/claims/${claimId}/link-source`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function labelClaimOpinion(
+  claimId: string,
+  claimType: "opinion" | "prediction_speculation" = "opinion"
+): Promise<any> {
+  return await request<any>(`/api/v1/evidence/claims/${claimId}/label-opinion`, {
+    method: "POST",
+    body: JSON.stringify({ claim_type: claimType }),
+  });
+}
+
+export async function listExperiments(opportunityId?: string): Promise<Experiment[]> {
+  const qs = opportunityId ? `?opportunity_id=${encodeURIComponent(opportunityId)}` : "";
+  return await request<Experiment[]>(`/api/v1/evidence/experiments${qs}`);
+}
+
+export async function getExperiment(experimentId: string): Promise<any> {
+  return await request<any>(`/api/v1/evidence/experiments/${experimentId}`);
+}
+
+export async function createExperiment(payload: {
+  title: string;
+  hypothesis: string;
+  method: string;
+  opportunity_id?: string;
+  tools_models?: string[];
+  parameters?: Record<string, any>;
+}): Promise<Experiment> {
+  return await request<Experiment>("/api/v1/evidence/experiments", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function addExperimentRun(
+  experimentId: string,
+  payload: {
+    run_number?: number;
+    execution_time_ms?: number;
+    cost_usd?: number;
+    status?: string;
+    error_message?: string;
+    measurements?: Array<{
+      metric: string;
+      value: number;
+      unit?: string;
+      context?: string;
+    }>;
+  }
+): Promise<any> {
+  return await request<any>(`/api/v1/evidence/experiments/${experimentId}/runs`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function addConclusion(
+  experimentId: string,
+  payload: {
+    summary: string;
+    claim_id?: string;
+    confidence?: number;
+  }
+): Promise<any> {
+  return await request<any>(`/api/v1/evidence/experiments/${experimentId}/conclusions`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getEvidenceCoverage(params?: {
+  packet_id?: string;
+  content_id?: string;
+}): Promise<CoverageReport> {
+  const searchParams = new URLSearchParams();
+  if (params?.packet_id) searchParams.set("packet_id", params.packet_id);
+  if (params?.content_id) searchParams.set("content_id", params.content_id);
+  const qs = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return await request<CoverageReport>(`/api/v1/evidence/coverage${qs}`, {
+    method: "POST",
+  });
+}
+
+export async function overrideContentClaim(
+  contentClaimId: string,
+  reason: string
+): Promise<any> {
+  return await request<any>(`/api/v1/evidence/content-claims/${contentClaimId}/override`, {
+    method: "POST",
+    body: JSON.stringify({ override_reason: reason }),
+  });
+}
+
 
 

@@ -27,7 +27,7 @@ async def test_opportunity_api_lifecycle(client: AsyncClient):
     assert run_data["output_count"] >= 1
 
     # 2. List Opportunities
-    list_res = await client.get("/api/v1/opportunities?sort_by=opportunity_score&limit=20")
+    list_res = await client.get("/api/v1/opportunities?sort_by=recency&limit=100")
     assert list_res.status_code == 200
     items = list_res.json()
     assert len(items) >= 1

@@ -1,0 +1,34 @@
+rules_version: 1.0.0
+engine_id: evidence
+
+coverage_thresholds:
+  min_coverage_percent: 85.0
+  max_unsupported_claims: 0
+  min_primary_source_weight: 1.0
+
+claim_types:
+  allowed:
+    - external_fact
+    - original_measurement
+    - derived_conclusion
+    - opinion
+    - prediction_speculation
+  factual:
+    - external_fact
+    - original_measurement
+    - derived_conclusion
+  subjective:
+    - opinion
+    - prediction_speculation
+
+actions_on_unsupported:
+  - find_evidence
+  - rewrite
+  - remove
+  - label_as_opinion
+  - explicit_override
+
+gate_policy:
+  require_override_reason_min_length: 10
+  allow_opinions_without_citation: true
+  block_script_approval_on_unsupported: true
