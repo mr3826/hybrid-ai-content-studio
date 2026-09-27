@@ -13,7 +13,7 @@
 | **Phase 7** | Evidence-Based Research Engine | PASS | `0105f36` | 84 pytest passed, web build passed | Traceable Research Packets with sources, claims, contradictions, and versioned revisions |
 | **Phase 8** | Evidence / Provenance Engine | PASS | `8583cef` | 89 pytest passed, web build passed | Provenance graph, claims classification, coverage gate, and empirical experiments |
 | **Phase 9** | Pluggable AI Provider Engine | PASS | `b436047` | 104 pytest passed, web build passed | Gemini primary, Qwen fallback, mock adapters, telemetry & token cost tracking |
-| **Phase 10** | Originality & Experiment Workspace | NOT_STARTED | - | - | Prerequisite: Phase 9 pass |
+| **Phase 10** | Originality & Experiment Workspace | PASS | `4ec72b5` | 116 pytest passed, web build passed | "What are WE adding?" gate, 12 originality formats, generic summary quarantine, experiment workspace & evidence link |
 | **Phase 11** | Content Family Engine | NOT_STARTED | - | - | Prerequisite: Phase 10 pass |
 | **Phase 12** | Evidence-Driven Content & Script Studio | NOT_STARTED | - | - | Prerequisite: Phase 11 pass |
 | **Phase 13** | Export & Publishing Assistant | NOT_STARTED | - | - | Prerequisite: Phase 12 pass |
