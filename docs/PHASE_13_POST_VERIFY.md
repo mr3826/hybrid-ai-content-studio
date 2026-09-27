@@ -2,6 +2,7 @@
 
 **Date & Time:** 2026-09-28T00:03:00+06:00  
 **Baseline Git Commit SHA:** `54635535316a` (`feat: add evidence-driven content and script studio`)  
+**Phase 13 Commit SHA:** `a6f9d30` (`feat: add export and manual publishing assistant`)  
 **Active Migration Head:** `6a7f8e9d0123` (`create_export_and_publication_tables`)
 
 ---
