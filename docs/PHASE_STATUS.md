@@ -17,8 +17,8 @@
 | **Phase 11** | Content Family Engine | PASS | `3a05052` | 127 pytest passed, web build passed | Parent-child Content Family architecture, evidence selection bridge, originality inheritance, amortized economics, and Creator Cockpit integration |
 | **Phase 12** | Evidence-Driven Content & Script Studio | PASS | `54635535316a` | 137 pytest passed, web build passed | Evidence-grounded multi-format scripts, section-level refinement, 6 quality dimensions, human approval gate, revision restore |
 | **Phase 13** | Export & Publishing Assistant | PASS | `a6f9d30` | 145 pytest passed, web build passed | Offline export packages, SHA-256 integrity, 7-point checklist, 4-platform browser launchers & copy metadata tools |
-| **Validation Gate** | Real-World Content Validation Gate | NOT_STARTED | - | - | Prerequisite: Phase 13 pass |
-| **Phase 14** | Asset Rights Engine | NOT_STARTED | - | - | Prerequisite: Validation Gate pass |
+| **Validation Gate** | Real-World Content Validation Gate | PASS | `53a2f59` | Protocol defined | Established in docs/CONTENT_VALIDATION_PROTOCOL.md |
+| **Phase 14** | Asset Rights Engine | PASS | `607fa39` | 68 pytest passed, web build passed | Provenance registry, license classifier, commercial status, attribution obligations, live evaluator & bilingual UI |
 | **Phase 15** | Scene & Asset Studio | NOT_STARTED | - | - | Prerequisite: Phase 14 pass |
 | **Phase 16** | Voice, Subtitle & Media Engine | NOT_STARTED | - | - | Prerequisite: Phase 15 pass |
 | **Phase 17** | Final Creator Quality Gate | NOT_STARTED | - | - | Prerequisite: Phase 16 pass |

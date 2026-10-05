@@ -1,0 +1,33 @@
+version: "1.0.0"
+strict_commercial_enforcement: true
+require_attribution_text_when_needed: true
+require_license_proof_for_verified: false
+warn_on_unknown_status: true
+block_do_not_use_status: true
+
+safe_license_types:
+  - "CC0"
+  - "Public Domain"
+  - "MIT"
+  - "Apache-2.0"
+  - "BSD-3-Clause"
+  - "Royalty-Free Commercial"
+  - "Self-Created"
+  - "Commercial License Purchased"
+  - "OFL"
+  - "OFL-1.1"
+  - "SIL Open Font License"
+
+attribution_license_types:
+  - "CC-BY"
+  - "CC-BY-4.0"
+  - "CC-BY-3.0"
+  - "CC-BY-SA"
+  - "CC-BY-SA-4.0"
+
+prohibited_license_types:
+  - "CC-BY-NC"
+  - "CC-BY-NC-SA"
+  - "Non-Commercial Only"
+  - "All Rights Reserved"
+  - "Editorial Use Only"

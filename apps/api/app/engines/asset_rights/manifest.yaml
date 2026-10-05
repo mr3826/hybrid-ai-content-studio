@@ -1,0 +1,20 @@
+id: "asset_rights"
+name: "Asset Rights Engine"
+version: "1.0.0"
+description: "Tracks license provenance, commercial use status, attribution requirements, and flags unsafe/unknown media assets."
+enabled: true
+inputs:
+  - "AssetInput"
+  - "SceneDraft"
+outputs:
+  - "AssetRightsRecord"
+  - "AssetRightsVerdict"
+dependencies: []
+triggers:
+  - "manual"
+  - "final_qc"
+supports:
+  dry_run: true
+  explain: true
+  health_check: true
+  configure: true

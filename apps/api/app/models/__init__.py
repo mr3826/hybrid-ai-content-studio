@@ -34,6 +34,11 @@ from app.models.export import (
     ExportPackage,
     PlatformPublication,
 )
+from app.models.asset_rights import (
+    AssetRightsRecord,
+    AssetRightsStatus,
+    CommercialUseStatus,
+)
 
 __all__ = [
     "Base",
@@ -75,5 +80,9 @@ __all__ = [
     "ScriptRevision",
     "ExportPackage",
     "PlatformPublication",
+    "AssetRightsRecord",
+    "AssetRightsStatus",
+    "CommercialUseStatus",
 ]
+
 

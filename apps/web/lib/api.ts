@@ -2326,4 +2326,112 @@ export function getExportDownloadUrl(itemId: string): string {
   return `${base}/api/v1/export/item/${itemId}/download`;
 }
 
+// --- Asset Rights Engine ---
+
+export interface AssetRightsRecord {
+  id: string;
+  content_item_id?: string | null;
+  title: string;
+  asset_type: string;
+  uri?: string | null;
+  source: string;
+  creator_provider?: string | null;
+  license_type: string;
+  commercial_use_status: string;
+  attribution_required: boolean;
+  attribution_text?: string | null;
+  license_proof?: string | null;
+  expiry_date?: string | null;
+  is_ai_generated: boolean;
+  ai_tool?: string | null;
+  status: "VERIFIED" | "UNKNOWN" | "REQUIRES_ATTRIBUTION" | "DO_NOT_USE";
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssetRightsSummaryStats {
+  total_assets: number;
+  verified: number;
+  unknown: number;
+  requires_attribution: number;
+  do_not_use: number;
+  safe_percentage: number;
+}
+
+export interface AssetRightsVerdict {
+  title: string;
+  status: "VERIFIED" | "UNKNOWN" | "REQUIRES_ATTRIBUTION" | "DO_NOT_USE";
+  is_safe: boolean;
+  commercial_use_allowed: boolean;
+  attribution_required: boolean;
+  attribution_text?: string | null;
+  warnings: string[];
+  explanation: string;
+}
+
+export interface AssetRightsCreateInput {
+  title: string;
+  asset_type?: string;
+  source: string;
+  creator_provider?: string;
+  license_type?: string;
+  commercial_use_status?: string;
+  attribution_required?: boolean;
+  attribution_text?: string;
+  license_proof?: string;
+  expiry_date?: string;
+  is_ai_generated?: boolean;
+  ai_tool?: string;
+  content_item_id?: string;
+  uri?: string;
+  notes?: string;
+  status?: string;
+}
+
+export async function listAssetRights(params?: {
+  content_item_id?: string;
+  status?: string;
+  asset_type?: string;
+  limit?: number;
+}): Promise<AssetRightsRecord[]> {
+  const q = new URLSearchParams();
+  if (params?.content_item_id) q.set("content_item_id", params.content_item_id);
+  if (params?.status && params.status !== "all") q.set("status", params.status);
+  if (params?.asset_type && params.asset_type !== "all") q.set("asset_type", params.asset_type);
+  if (params?.limit) q.set("limit", String(params.limit));
+  const qs = q.toString() ? `?${q.toString()}` : "";
+  return await request<AssetRightsRecord[]>(`/api/v1/asset-rights${qs}`);
+}
+
+export async function getAssetRightsSummary(): Promise<AssetRightsSummaryStats> {
+  return await request<AssetRightsSummaryStats>("/api/v1/asset-rights/summary/stats");
+}
+
+export async function registerAssetRights(payload: AssetRightsCreateInput): Promise<AssetRightsRecord> {
+  return await request<AssetRightsRecord>("/api/v1/asset-rights", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function evaluateAssetRights(payload: any): Promise<AssetRightsVerdict> {
+  return await request<AssetRightsVerdict>("/api/v1/asset-rights/evaluate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAssetRights(id: string): Promise<void> {
+  return await request<void>(`/api/v1/asset-rights/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function seedStarterAssetRights(): Promise<AssetRightsRecord[]> {
+  return await request<AssetRightsRecord[]>("/api/v1/asset-rights/seed-defaults", {
+    method: "POST",
+  });
+}
+
 
