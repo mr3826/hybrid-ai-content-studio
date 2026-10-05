@@ -20,6 +20,7 @@ import {
   Share2,
   Video,
   Headphones,
+  CheckSquare,
 } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 
@@ -36,6 +37,7 @@ const NAV_CONFIG = [
   { href: "/asset-rights", key: "nav.assetRights", fallback: "Asset Rights", icon: ShieldAlert },
   { href: "/scene-studio", key: "nav.sceneStudio", fallback: "Scene Studio", icon: Video },
   { href: "/media-studio", key: "nav.mediaStudio", fallback: "Media Studio", icon: Headphones },
+  { href: "/quality-gate", key: "nav.qualityGate", fallback: "Quality Gate", icon: CheckSquare },
   { href: "/ai", key: "nav.ai", fallback: "AI Engine", icon: Bot },
   { href: "/projects", key: "nav.projects", fallback: "Projects", icon: Film },
   { href: "/engines", key: "nav.engines", fallback: "Engines", icon: Cpu },

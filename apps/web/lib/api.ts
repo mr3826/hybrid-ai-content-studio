@@ -2754,6 +2754,94 @@ export async function renderScriptMedia(
   });
 }
 
+// ==========================================
+// PHASE 17: FINAL CREATOR QUALITY GATE
+// ==========================================
+
+export interface QualityDimension {
+  id: string;
+  name: string;
+  score: number;
+  status: "PASSED" | "WARNING" | "BLOCKED";
+  summary: string;
+  metrics: Record<string, any>;
+  details: string[];
+}
+
+export interface CorrectionRoute {
+  action_type: string;
+  title: string;
+  description: string;
+  target_route: string;
+  severity: "high" | "medium" | "low";
+}
+
+export interface QualityGateAudit {
+  id?: string;
+  content_item_id: string;
+  script_id?: string | null;
+  item_title: string;
+  format: string;
+  platform_target: string;
+  status: "PENDING" | "PASSED" | "WARNING" | "BLOCKED" | "FINAL_APPROVED";
+  overall_score: number;
+  is_approved: boolean;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  override_reason?: string | null;
+  dimensions: QualityDimension[];
+  recommendations: CorrectionRoute[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface QualityGateSummary {
+  total_items: number;
+  final_approved_count: number;
+  pending_review_count: number;
+  approval_rate_percent: number;
+}
+
+export interface FinalApprovalResponse {
+  content_item_id: string;
+  script_id?: string | null;
+  status: string;
+  is_approved: boolean;
+  unlocked_export: boolean;
+  approved_by: string;
+  approved_at: string;
+  message: string;
+}
+
+export async function getQualityGateAudit(itemId: string): Promise<QualityGateAudit> {
+  return await request<QualityGateAudit>(`/api/v1/quality-gate/item/${itemId}`);
+}
+
+export async function evaluateQualityGate(itemId: string): Promise<QualityGateAudit> {
+  return await request<QualityGateAudit>(`/api/v1/quality-gate/evaluate/${itemId}`, {
+    method: "POST",
+  });
+}
+
+export async function approveFinalQualityGate(
+  itemId: string,
+  payload?: {
+    approved_by?: string;
+    notes?: string;
+    override_reason?: string;
+  }
+): Promise<FinalApprovalResponse> {
+  return await request<FinalApprovalResponse>(`/api/v1/quality-gate/approve/${itemId}`, {
+    method: "POST",
+    body: JSON.stringify(payload || {}),
+  });
+}
+
+export async function getQualityGateSummary(): Promise<QualityGateSummary> {
+  return await request<QualityGateSummary>("/api/v1/quality-gate/summary");
+}
+
+
 
 
 

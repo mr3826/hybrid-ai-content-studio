@@ -52,6 +52,7 @@ from app.models.media import (
     MediaPackageStatus,
     MediaResolution,
 )
+from app.models.quality_gate import QualityGateAudit
 
 __all__ = [
     "Base",
@@ -105,6 +106,7 @@ __all__ = [
     "SceneVoiceTrack",
     "MediaPackageStatus",
     "MediaResolution",
+    "QualityGateAudit",
 ]
 
 

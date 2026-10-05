@@ -1,0 +1,29 @@
+id: quality_gate
+name: Quality Gate Engine
+version: 1.0.0
+description: Evaluates and enforces the 9 creator quality dimensions before export.
+inputs:
+  - ContentItem
+  - ScriptDraft
+  - SceneStoryboard
+  - MediaPackage
+  - ResearchPacket
+  - AssetRightsRecord
+outputs:
+  - QualityGateAuditRecord
+  - QualityDimensionBreakdown
+  - ActionableCorrections
+dependencies:
+  - evidence
+  - brand
+  - originality
+  - media
+  - asset_rights
+triggers:
+  - manual
+  - pre_export
+supports:
+  dry_run: true
+  explain: true
+  health_check: true
+  configure: true

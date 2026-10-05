@@ -21,6 +21,7 @@ from app.api.v1.export import router as export_router
 from app.api.v1.asset_rights import router as asset_rights_router
 from app.api.v1.scenes import router as scenes_router
 from app.api.v1.media import router as media_router
+from app.api.v1.quality_gate import router as quality_gate_router
 
 api_v1_router = APIRouter()
 api_v1_router.include_router(health_router)
@@ -45,5 +46,6 @@ api_v1_router.include_router(export_router)
 api_v1_router.include_router(asset_rights_router)
 api_v1_router.include_router(scenes_router)
 api_v1_router.include_router(media_router)
+api_v1_router.include_router(quality_gate_router)
 
 

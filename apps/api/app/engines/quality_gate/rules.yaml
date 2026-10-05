@@ -1,0 +1,25 @@
+rules_version: 1.0.0
+thresholds:
+  min_overall_score: 70.0
+  min_evidence_score: 60.0
+  min_brand_score: 75.0
+  min_originality_score: 65.0
+  min_viewer_value_score: 65.0
+  min_niche_fit_score: 70.0
+  max_repetition_percentage: 30.0
+  asset_rights_cleared_ratio: 1.0
+  target_audio_sample_rate_hz: 44100
+blocking_conditions:
+  blocked_asset_rights: true
+  banned_cliches_detected: true
+  unverified_claims_ratio_gt: 0.40
+  missing_script_approval: true
+weights:
+  evidence_quality: 0.18
+  brand_fit: 0.15
+  originality: 0.15
+  viewer_value: 0.12
+  niche_fit: 0.12
+  repetition: 0.08
+  asset_rights: 0.10
+  media_qc: 0.10
