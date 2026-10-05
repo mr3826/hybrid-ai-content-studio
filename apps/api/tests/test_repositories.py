@@ -10,6 +10,7 @@ from app.repositories import (
     ContentRepository,
     AnalyticsRepository,
     AssetRepository,
+    FeedbackRepository,
 )
 from app.engines.core.registry import engine_registry
 from app.engines.core.base import EngineContext
@@ -28,6 +29,7 @@ async def test_repository_boundaries_initialization(db_session: AsyncSession):
     cnt_repo = ContentRepository(db_session)
     ana_repo = AnalyticsRepository(db_session)
     ast_repo = AssetRepository(db_session)
+    fbk_repo = FeedbackRepository(db_session)
 
     assert isinstance(job_repo, BaseRepository)
     assert isinstance(opp_repo, BaseRepository)
@@ -37,6 +39,7 @@ async def test_repository_boundaries_initialization(db_session: AsyncSession):
     assert isinstance(cnt_repo, BaseRepository)
     assert isinstance(ana_repo, BaseRepository)
     assert isinstance(ast_repo, BaseRepository)
+    assert isinstance(fbk_repo, BaseRepository)
 
     # Test basic boundary methods
     opps = await opp_repo.list_opportunities()

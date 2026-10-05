@@ -54,6 +54,7 @@ from app.models.media import (
 )
 from app.models.quality_gate import QualityGateAudit
 from app.models.analytics import PublicationMetricsSnapshot
+from app.models.feedback import FeedbackLesson
 
 __all__ = [
     "Base",
@@ -109,6 +110,7 @@ __all__ = [
     "MediaResolution",
     "QualityGateAudit",
     "PublicationMetricsSnapshot",
+    "FeedbackLesson",
 ]
 
 

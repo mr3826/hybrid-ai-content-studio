@@ -3029,6 +3029,137 @@ export async function runAnalyticsEngine(params?: Record<string, any>): Promise<
   });
 }
 
+// -------------------------------------------------------------
+// Phase 19: Human-Approved Feedback Engine
+// -------------------------------------------------------------
+
+export interface ProposedAdjustment {
+  target: string;
+  field: string;
+  action: string;
+  value: any;
+  summary: string;
+}
+
+export interface FeedbackLesson {
+  id: string;
+  content_item_id?: string | null;
+  content_item_title?: string | null;
+  lesson_type: string;
+  title: string;
+  observation: string;
+  impact_level: string;
+  confidence_score: number;
+  evidence_data: Record<string, any>;
+  proposed_adjustment: ProposedAdjustment;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "APPLIED";
+  creator_notes?: string | null;
+  reviewed_at?: string | null;
+  applied_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface FeedbackSummary {
+  total_lessons: number;
+  pending_count: number;
+  approved_count: number;
+  applied_count: number;
+  rejected_count: number;
+  by_type: Record<string, number>;
+  by_impact: Record<string, number>;
+}
+
+export interface FeedbackEvaluateResponse {
+  evaluated_snapshots: number;
+  lessons_generated: number;
+  lessons: FeedbackLesson[];
+}
+
+export interface FeedbackExplainResponse {
+  lesson_id: string;
+  lesson_type: string;
+  title: string;
+  observation: string;
+  reasoning: string;
+  data_source: string;
+  rule_triggered: string;
+  human_gate_required: boolean;
+}
+
+export async function getFeedbackSummary(): Promise<FeedbackSummary> {
+  return await request<FeedbackSummary>("/api/v1/feedback/summary");
+}
+
+export async function listFeedbackLessons(
+  status?: string,
+  lessonType?: string,
+  limit: number = 50,
+  offset: number = 0
+): Promise<FeedbackLesson[]> {
+  const params = new URLSearchParams();
+  if (status) params.append("status", status);
+  if (lessonType) params.append("lesson_type", lessonType);
+  params.append("limit", limit.toString());
+  params.append("offset", offset.toString());
+  return await request<FeedbackLesson[]>(`/api/v1/feedback/lessons?${params.toString()}`);
+}
+
+export async function getFeedbackLesson(lessonId: string): Promise<FeedbackLesson> {
+  return await request<FeedbackLesson>(`/api/v1/feedback/lessons/${lessonId}`);
+}
+
+export async function createFeedbackLesson(payload: {
+  lesson_type: string;
+  title: string;
+  observation: string;
+  impact_level: string;
+  confidence_score?: number;
+  content_item_id?: string;
+  evidence_data?: Record<string, any>;
+  proposed_adjustment: ProposedAdjustment;
+}): Promise<FeedbackLesson> {
+  return await request<FeedbackLesson>("/api/v1/feedback/lessons", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function approveFeedbackLesson(lessonId: string, notes?: string): Promise<FeedbackLesson> {
+  return await request<FeedbackLesson>(`/api/v1/feedback/lessons/${lessonId}/approve`, {
+    method: "POST",
+    body: JSON.stringify({ creator_notes: notes || null }),
+  });
+}
+
+export async function rejectFeedbackLesson(lessonId: string, notes?: string): Promise<FeedbackLesson> {
+  return await request<FeedbackLesson>(`/api/v1/feedback/lessons/${lessonId}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ creator_notes: notes || null }),
+  });
+}
+
+export async function applyFeedbackLesson(lessonId: string): Promise<FeedbackLesson> {
+  return await request<FeedbackLesson>(`/api/v1/feedback/lessons/${lessonId}/apply`, {
+    method: "POST",
+  });
+}
+
+export async function evaluateFeedback(
+  days: number = 30,
+  minImpressions: number = 50
+): Promise<FeedbackEvaluateResponse> {
+  return await request<FeedbackEvaluateResponse>("/api/v1/feedback/evaluate", {
+    method: "POST",
+    body: JSON.stringify({ days, min_impressions: minImpressions }),
+  });
+}
+
+export async function explainFeedbackLesson(lessonId: string): Promise<FeedbackExplainResponse> {
+  return await request<FeedbackExplainResponse>(`/api/v1/feedback/explain/${lessonId}`);
+}
+
+
 
 
 

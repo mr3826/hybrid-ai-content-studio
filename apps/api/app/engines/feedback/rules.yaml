@@ -1,0 +1,36 @@
+rules_version: "1.0.0"
+
+# Invariant: Never allow unvetted automated self-modification
+auto_apply: false
+
+# Thresholds for triggering performance lessons
+hook_retention_critical_threshold_pct: 45.0  # Under 45% -> generate hook optimization lesson
+hook_retention_viral_threshold_pct: 75.0     # Over 75% -> generate hook exemplar lesson
+
+engagement_rate_critical_threshold_pct: 2.0  # Under 2% -> generate CTA or pacing lesson
+engagement_rate_strong_threshold_pct: 8.0    # Over 8% -> generate topic/angle reinforcement lesson
+
+average_view_duration_ratio_critical: 0.40   # AVD < 40% duration -> structural pacing lesson
+
+min_impressions_for_evaluation: 50           # Minimum traffic before generating statistical lessons
+min_views_for_hook_evaluation: 25
+
+confidence_defaults:
+  statistical_significance_high: 0.90
+  statistical_significance_medium: 0.75
+  manual_observation: 0.85
+
+allowed_lesson_types:
+  - hook_optimization
+  - pacing_adjustment
+  - banned_phrase_addition
+  - preferred_vocabulary_addition
+  - format_recommendation
+  - topic_reinforcement
+  - angle_guidance
+  - cta_refinement
+
+impact_levels:
+  - HIGH
+  - MEDIUM
+  - LOW

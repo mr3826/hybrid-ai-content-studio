@@ -1,0 +1,19 @@
+id: feedback
+name: Human-Approved Feedback Engine
+version: 1.0.0
+description: Closed feedback loop synthesizing publication performance lessons, generating human-approved editorial and brand memory adjustments, and preventing unvetted automated self-modification.
+category: optimization
+dependencies:
+  - analytics
+  - brand
+inputs:
+  - publication_metrics_snapshots
+  - scripts_and_hooks
+  - brand_profile
+outputs:
+  - feedback_lessons
+  - rule_adjustments
+capabilities:
+  dry_run: true
+  explain: true
+  health_check: true

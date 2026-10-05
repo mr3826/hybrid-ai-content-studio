@@ -19,6 +19,7 @@ from app.engines.scene_studio.engine import SceneStudioEngine
 from app.engines.media.engine import MediaEngine
 from app.engines.quality_gate.engine import QualityGateEngine
 from app.engines.analytics.engine import AnalyticsEngine
+from app.engines.feedback.engine import FeedbackEngine
 
 CATALOG_DEFINITIONS = [
 
@@ -162,6 +163,16 @@ CATALOG_DEFINITIONS = [
         "dependencies": [],
         "triggers": ["manual", "scheduled"],
     },
+    {
+        "id": "feedback",
+        "name": "Human-Approved Feedback Engine",
+        "version": "1.0.0",
+        "description": "Closed feedback loop synthesizing publication performance lessons into human-vetted brand memory and editorial adjustments.",
+        "inputs": ["publication_metrics_snapshots", "scripts_and_hooks", "brand_profile"],
+        "outputs": ["feedback_lessons", "rule_adjustments"],
+        "dependencies": ["analytics", "brand"],
+        "triggers": ["manual"],
+    },
 ]
 
 
@@ -224,9 +235,12 @@ def register_all_catalog_engines() -> None:
     analytics_engine = AnalyticsEngine()
     engine_registry.register(analytics_engine, replace=True)
 
+    feedback_engine = FeedbackEngine()
+    engine_registry.register(feedback_engine, replace=True)
+
     # Register remaining catalog engines as placeholders if not already registered
     for d in CATALOG_DEFINITIONS:
-        if d["id"] in ("niche_guard", "brand", "rss", "trends", "opportunity", "research", "evidence", "ai", "originality", "content_family", "content", "export", "asset_rights", "scene_studio", "media", "quality_gate", "analytics"):
+        if d["id"] in ("niche_guard", "brand", "rss", "trends", "opportunity", "research", "evidence", "ai", "originality", "content_family", "content", "export", "asset_rights", "scene_studio", "media", "quality_gate", "analytics", "feedback"):
             continue
         if not engine_registry.get(d["id"]):
             manifest = EngineManifest(**d)

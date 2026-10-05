@@ -18,6 +18,7 @@ from app.repositories.content_family_repository import (
 from app.repositories.script_repository import ScriptRepository
 from app.repositories.export_repository import ExportRepository
 from app.repositories.publishing_repository import PublishingRepository
+from app.repositories.feedback_repository import FeedbackRepository
 
 __all__ = [
     "BaseRepository",
@@ -38,5 +39,6 @@ __all__ = [
     "ScriptRepository",
     "ExportRepository",
     "PublishingRepository",
+    "FeedbackRepository",
 ]
 
