@@ -2322,7 +2322,7 @@ export async function listPublishableItems(statusFilter?: string): Promise<Publi
 }
 
 export function getExportDownloadUrl(itemId: string): string {
-  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || API_BASE_URL;
   return `${base}/api/v1/export/item/${itemId}/download`;
 }
 

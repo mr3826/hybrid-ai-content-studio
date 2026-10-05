@@ -30,8 +30,10 @@ import {
   watchOpportunity,
   rejectOpportunity,
 } from "@/lib/api";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function OpportunitiesPage() {
+  const { t, isBangla } = useLanguage();
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [runningAnalysis, setRunningAnalysis] = useState(false);
@@ -171,13 +173,13 @@ export default function OpportunitiesPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
-                Opportunity Intelligence
+                {t("opportunities.title", "Opportunity Intelligence")}
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                   10-Factor Gate
                 </span>
               </h1>
               <p className="text-sm text-zinc-400">
-                Is this worth creating for THIS channel? Originality potential, audience usefulness & channel saturation.
+                {t("opportunities.subtitle", "Is this worth creating for THIS channel? Originality potential, audience usefulness & channel saturation.")}
               </p>
             </div>
           </div>
@@ -190,7 +192,7 @@ export default function OpportunitiesPage() {
             className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium border border-zinc-700 transition flex items-center gap-2 disabled:opacity-50"
           >
             <Play className="w-4 h-4 text-zinc-400" />
-            Dry Run
+            {isBangla ? "টেস্ট রান" : "Dry Run"}
           </button>
           <button
             onClick={() => handleRunAnalysis(false)}
@@ -198,7 +200,9 @@ export default function OpportunitiesPage() {
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-indigo-600/20 flex items-center gap-2 disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${runningAnalysis ? "animate-spin" : ""}`} />
-            Evaluate Opportunities
+            {runningAnalysis
+              ? (isBangla ? "এনালাইসিস চলছে..." : "Running...")
+              : (isBangla ? "সুযোগ এনালাইসিস চালান" : "Evaluate Opportunities")}
           </button>
         </div>
       </div>

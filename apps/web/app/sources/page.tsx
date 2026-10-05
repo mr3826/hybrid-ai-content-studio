@@ -32,8 +32,10 @@ import {
   dryRunRssDiscovery,
   listDiscoveredCandidates,
 } from "@/lib/api";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function SourcesPage() {
+  const { t, isBangla } = useLanguage();
   const [feeds, setFeeds] = useState<RssFeed[]>([]);
   const [candidates, setCandidates] = useState<DiscoveredCandidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,14 +160,15 @@ export default function SourcesPage() {
             <div className="w-8 h-8 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center font-bold">
               <Rss className="w-4 h-4" />
             </div>
-            <h1 className="text-xl font-bold text-white tracking-tight">RSS Source Discovery</h1>
+            <h1 className="text-xl font-bold text-white tracking-tight">
+              {t("sources.title", "RSS Source Discovery")}
+            </h1>
             <span className="px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">
               Phase 4 Active
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-            Resilient local source discovery with exact and near-title deduplication, cross-source grouping,
-            freshness filtering, and deterministic Niche Guard validation with zero AI calls.
+            {t("sources.subtitle", "Resilient local source discovery with exact and near-title deduplication, cross-source grouping, freshness filtering, and deterministic Niche Guard validation with zero AI calls.")}
           </p>
         </div>
 
@@ -176,16 +179,20 @@ export default function SourcesPage() {
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors disabled:opacity-50"
           >
             <Play className="w-3.5 h-3.5 text-amber-400" />
-            <span>Dry Run</span>
+            <span>{isBangla ? "টেস্ট রান" : "Dry Run"}</span>
           </button>
 
           <button
             onClick={() => handleRunDiscovery(false)}
             disabled={runningDiscovery}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${runningDiscovery ? "animate-spin" : ""}`} />
-            <span>{runningDiscovery ? "Polling..." : "Run Discovery"}</span>
+            <span>
+              {runningDiscovery
+                ? (isBangla ? "সিঙ্ক হচ্ছে..." : "Polling...")
+                : (isBangla ? "ডিসকভারি চালান" : "Run Discovery")}
+            </span>
           </button>
 
           <button
@@ -193,7 +200,7 @@ export default function SourcesPage() {
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
           >
             <Plus className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Add Source</span>
+            <span>{t("sources.addFeed", "Add Source")}</span>
           </button>
         </div>
       </div>
@@ -223,7 +230,7 @@ export default function SourcesPage() {
             onClick={() => setActionMessage(null)}
             className="text-slate-400 hover:text-white text-xs px-2 py-0.5"
           >
-            Dismiss
+            {t("common.dismiss", "Dismiss")}
           </button>
         </div>
       )}
@@ -239,7 +246,9 @@ export default function SourcesPage() {
           }`}
         >
           <Layers className="w-3.5 h-3.5" />
-          <span>Discovered Candidates ({candidates.length})</span>
+          <span>
+            {isBangla ? "শনাক্তকৃত টপিক ও ক্যান্ডিডেট" : "Discovered Candidates"} ({candidates.length})
+          </span>
         </button>
 
         <button
@@ -251,7 +260,9 @@ export default function SourcesPage() {
           }`}
         >
           <Rss className="w-3.5 h-3.5" />
-          <span>Configured Feeds ({feeds.length})</span>
+          <span>
+            {isBangla ? "কনফিগার করা ফিডসমূহ" : "Configured Feeds"} ({feeds.length})
+          </span>
         </button>
       </div>
 

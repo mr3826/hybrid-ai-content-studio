@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   Compass,
   Sparkles,
-  Clock,
   DollarSign,
   HardDrive,
   Activity,
@@ -14,18 +13,13 @@ import {
   Eye,
   ArrowRight,
   Flame,
-  Zap,
   TrendingUp,
   Rss,
   RefreshCw,
-  AlertCircle,
-  FileSearch,
-  ExternalLink,
   Boxes,
 } from "lucide-react";
 import {
   CockpitSummary,
-  Opportunity,
   StudioStatus,
   ContentFamilyItem,
   getCockpitSummary,
@@ -36,8 +30,10 @@ import {
   rejectOpportunity,
   runOpportunities,
 } from "@/lib/api";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function CreatorCockpitPage() {
+  const { t } = useLanguage();
   const [summary, setSummary] = useState<CockpitSummary | null>(null);
   const [studioStatus, setStudioStatus] = useState<StudioStatus | null>(null);
   const [families, setFamilies] = useState<ContentFamilyItem[]>([]);
@@ -81,13 +77,13 @@ export default function CreatorCockpitPage() {
       await approveOpportunityResearch(oppId);
       setActionFeedback({
         type: "success",
-        text: `Approved "${topicName}" for Research. Status is now Research Ready.`,
+        text: `"${topicName}" — ${t("cockpit.approvedFeedback", "Approved for Research. Status is now Research Ready.")}`,
       });
       await fetchCockpitData();
     } catch (err: any) {
       setActionFeedback({
         type: "error",
-        text: `Failed to approve opportunity: ${err.message}`,
+        text: `${t("cockpit.failedApprove", "Failed to approve opportunity:")} ${err.message}`,
       });
     }
   };
@@ -97,13 +93,13 @@ export default function CreatorCockpitPage() {
       await watchOpportunity(oppId);
       setActionFeedback({
         type: "info",
-        text: `Moved "${topicName}" to Watch list. Monitoring trend momentum.`,
+        text: `"${topicName}" — ${t("cockpit.watchedFeedback", "Moved to Watch list. Monitoring trend momentum.")}`,
       });
       await fetchCockpitData();
     } catch (err: any) {
       setActionFeedback({
         type: "error",
-        text: `Failed to watch opportunity: ${err.message}`,
+        text: `${t("cockpit.failedWatch", "Failed to watch opportunity:")} ${err.message}`,
       });
     }
   };
@@ -113,13 +109,13 @@ export default function CreatorCockpitPage() {
       await rejectOpportunity(oppId, "Dismissed from Cockpit");
       setActionFeedback({
         type: "info",
-        text: `Rejected "${topicName}". Removed from review queue.`,
+        text: `"${topicName}" — ${t("cockpit.rejectedFeedback", "Rejected topic. Removed from review queue.")}`,
       });
       await fetchCockpitData();
     } catch (err: any) {
       setActionFeedback({
         type: "error",
-        text: `Failed to reject opportunity: ${err.message}`,
+        text: `${t("cockpit.failedReject", "Failed to reject opportunity:")} ${err.message}`,
       });
     }
   };
@@ -129,18 +125,18 @@ export default function CreatorCockpitPage() {
       setRunningAnalysis(true);
       setActionFeedback({
         type: "info",
-        text: "Evaluating fresh signals against Niche Guard and Brand memory...",
+        text: t("cockpit.evaluatingSignals", "Evaluating fresh signals against Niche Guard and Brand memory..."),
       });
       const res = await runOpportunities();
       setActionFeedback({
         type: "success",
-        text: res.summary || "Opportunity intelligence analysis completed!",
+        text: res.summary || t("cockpit.analysisCompleted", "Opportunity intelligence analysis completed!"),
       });
       await fetchCockpitData();
     } catch (err: any) {
       setActionFeedback({
         type: "error",
-        text: `Analysis failed: ${err.message}`,
+        text: `${t("cockpit.analysisFailed", "Analysis failed:")} ${err.message}`,
       });
     } finally {
       setRunningAnalysis(false);
@@ -158,15 +154,15 @@ export default function CreatorCockpitPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
-                Creator Cockpit
+                {t("cockpit.title", "Creator Cockpit")}
                 <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  Human Quality Gate
+                  {t("cockpit.humanQualityGate", "Human Quality Gate")}
                 </span>
               </h1>
-              <p className="text-sm text-zinc-400">
-                Single Niche: <span className="text-zinc-200 font-medium">{studioStatus?.active_niche_name || "Configuring..."}</span>
+              <p className="text-sm text-zinc-400 mt-1">
+                {t("cockpit.singleNiche", "Single Niche:")} <span className="text-zinc-200 font-medium">{studioStatus?.active_niche_name || t("common.configuring", "Configuring...")}</span>
                 <span className="mx-2 text-zinc-600">|</span>
-                Single Brand: <span className="text-zinc-200 font-medium">{studioStatus?.active_brand_name || "Configuring..."}</span>
+                {t("cockpit.singleBrand", "Single Brand:")} <span className="text-zinc-200 font-medium">{studioStatus?.active_brand_name || t("common.configuring", "Configuring...")}</span>
               </p>
             </div>
           </div>
@@ -178,14 +174,14 @@ export default function CreatorCockpitPage() {
             className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium border border-zinc-700 transition flex items-center gap-2"
           >
             <Rss className="w-4 h-4 text-zinc-400" />
-            Sources
+            {t("cockpit.sourcesBtn", "Sources")}
           </Link>
           <Link
             href="/trends"
             className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium border border-zinc-700 transition flex items-center gap-2"
           >
             <TrendingUp className="w-4 h-4 text-rose-400" />
-            Trends
+            {t("cockpit.trendsBtn", "Trends")}
           </Link>
           <button
             onClick={handleRunOpportunityAnalysis}
@@ -193,7 +189,7 @@ export default function CreatorCockpitPage() {
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-indigo-600/20 flex items-center gap-2 disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${runningAnalysis ? "animate-spin" : ""}`} />
-            Evaluate Opportunities
+            {runningAnalysis ? t("cockpit.runningAnalysis", "Running Analysis...") : t("cockpit.evaluateBtn", "Evaluate Opportunities")}
           </button>
         </div>
       </div>
@@ -214,17 +210,17 @@ export default function CreatorCockpitPage() {
             onClick={() => setActionFeedback(null)}
             className="text-xs hover:underline opacity-80"
           >
-            Dismiss
+            {t("common.dismiss", "Dismiss")}
           </button>
         </div>
       )}
 
-      {/* Decision Metrics Grid (Main Dashboard Requirements) */}
+      {/* Decision Metrics Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
         {/* Signals Today */}
         <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
           <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
-            Signals Today
+            {t("cockpit.signalsToday", "Signals Today")}
           </span>
           <div className="mt-2 text-2xl font-bold text-white">
             {summary?.signals_today ?? 0}
@@ -234,7 +230,7 @@ export default function CreatorCockpitPage() {
         {/* Needs Review */}
         <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-500/30">
           <span className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider block">
-            Needs Review
+            {t("cockpit.needsReview", "Needs Review")}
           </span>
           <div className="mt-2 text-2xl font-bold text-amber-400">
             {summary?.needs_review ?? 0}
@@ -244,7 +240,7 @@ export default function CreatorCockpitPage() {
         {/* Research Ready */}
         <div className="p-4 rounded-xl bg-indigo-950/20 border border-indigo-500/30">
           <span className="text-[11px] font-semibold text-indigo-400 uppercase tracking-wider block">
-            Research Ready
+            {t("cockpit.researchReady", "Research Ready")}
           </span>
           <div className="mt-2 text-2xl font-bold text-indigo-400">
             {summary?.research_ready ?? 0}
@@ -254,7 +250,7 @@ export default function CreatorCockpitPage() {
         {/* In Production */}
         <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
           <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
-            In Production
+            {t("cockpit.inProduction", "In Production")}
           </span>
           <div className="mt-2 text-2xl font-bold text-sky-400">
             {summary?.in_production ?? 0}
@@ -264,7 +260,7 @@ export default function CreatorCockpitPage() {
         {/* Ready to Publish */}
         <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30">
           <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block">
-            Ready to Publish
+            {t("cockpit.readyToPublish", "Ready to Publish")}
           </span>
           <div className="mt-2 text-2xl font-bold text-emerald-400">
             {summary?.ready_to_publish ?? 0}
@@ -274,7 +270,7 @@ export default function CreatorCockpitPage() {
         {/* Published */}
         <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
           <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
-            Published
+            {t("cockpit.published", "Published")}
           </span>
           <div className="mt-2 text-2xl font-bold text-zinc-300">
             {summary?.published ?? 0}
@@ -285,7 +281,7 @@ export default function CreatorCockpitPage() {
         <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
           <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block flex items-center gap-1">
             <DollarSign className="w-3 h-3 text-emerald-400" />
-            AI Spend
+            {t("cockpit.aiSpend", "AI Spend")}
           </span>
           <div className="mt-2 text-2xl font-bold text-emerald-400">
             ${summary?.ai_spend.toFixed(2) ?? "0.00"}
@@ -296,7 +292,7 @@ export default function CreatorCockpitPage() {
         <div className="p-4 rounded-xl bg-zinc-900/60 border border-zinc-800">
           <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block flex items-center gap-1">
             <HardDrive className="w-3 h-3 text-zinc-400" />
-            Disk Usage
+            {t("cockpit.diskUsage", "Disk Usage")}
           </span>
           <div className="mt-2 text-2xl font-bold text-zinc-300">
             {summary?.disk_usage.database_mb ?? 0} MB
@@ -304,7 +300,7 @@ export default function CreatorCockpitPage() {
         </div>
       </div>
 
-      {/* Content Families Portfolio Status (Phase 11 Requirement) */}
+      {/* Content Families Portfolio Status */}
       <div className="p-5 rounded-2xl bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-zinc-900/60 border border-indigo-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <div className="p-3 bg-indigo-600/20 border border-indigo-500/30 rounded-xl text-indigo-400">
@@ -312,13 +308,15 @@ export default function CreatorCockpitPage() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-white">Content Family Engine</h3>
+              <h3 className="text-base font-bold text-white">
+                {t("cockpit.contentFamilyEngine", "Content Family Engine")}
+              </h3>
               <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                Amortized Research
+                {t("cockpit.amortizedResearch", "Amortized Research")}
               </span>
             </div>
             <p className="text-xs text-zinc-400 mt-0.5">
-              Turn one evidence investment into multi-format, platform-tailored content items.
+              {t("cockpit.contentFamilyDesc", "Turn one evidence investment into multi-format, platform-tailored content items.")}
             </p>
           </div>
         </div>
@@ -328,13 +326,13 @@ export default function CreatorCockpitPage() {
             <div className="px-3 py-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-indigo-400" />
               <span className="text-zinc-400 font-medium">
-                <strong className="text-white font-bold">{activeFamiliesCount}</strong> Content Families Active
+                <strong className="text-white font-bold">{activeFamiliesCount}</strong> {t("cockpit.familiesActive", "Content Families Active")}
               </span>
             </div>
             <div className="px-3 py-1.5 rounded-lg bg-zinc-900/90 border border-zinc-800 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
               <span className="text-zinc-400 font-medium">
-                <strong className="text-white font-bold">{plannedItemsCount}</strong> Planned Content Items
+                <strong className="text-white font-bold">{plannedItemsCount}</strong> {t("cockpit.plannedItems", "Planned Content Items")}
               </span>
             </div>
           </div>
@@ -343,29 +341,29 @@ export default function CreatorCockpitPage() {
             href="/content-families"
             className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
           >
-            <span>Open Families</span>
+            <span>{t("cockpit.openFamilies", "Open Families")}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
       </div>
 
-      {/* Top Opportunity Section (Mandatory Spec Item) */}
+      {/* Top Opportunity Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-indigo-400" />
-              Top Opportunity Decisions
+              {t("cockpit.topOpportunityTitle", "Top Opportunity Decisions")}
             </h2>
-            <p className="text-xs text-zinc-400">
-              Ranked by 10-factor opportunity intelligence. Explicit human approval required before research begins.
+            <p className="text-xs text-zinc-400 mt-0.5">
+              {t("cockpit.topOpportunityDesc", "Ranked by 10-factor opportunity intelligence. Explicit human approval required before research begins.")}
             </p>
           </div>
           <Link
             href="/opportunities"
             className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
           >
-            View All Opportunities
+            {t("cockpit.viewAllOpportunities", "View All Opportunities")}
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
@@ -373,7 +371,7 @@ export default function CreatorCockpitPage() {
         {loading ? (
           <div className="p-12 text-center text-sm text-zinc-500 flex items-center justify-center gap-2">
             <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
-            Loading high-priority opportunities...
+            {t("cockpit.loadingOpportunities", "Loading high-priority opportunities...")}
           </div>
         ) : summary?.top_opportunities && summary.top_opportunities.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -392,7 +390,7 @@ export default function CreatorCockpitPage() {
                       </div>
                       <div className="px-2 py-0.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold flex items-center gap-1">
                         <Flame className="w-3 h-3" />
-                        <span>Trend: {Math.round(opp.trend_score)}</span>
+                        <span>{t("cockpit.trendScore", "Trend:")} {Math.round(opp.trend_score)}</span>
                       </div>
                     </div>
 
@@ -411,7 +409,7 @@ export default function CreatorCockpitPage() {
                   {/* Original Test Angle / Idea */}
                   <div className="p-3 rounded-xl bg-zinc-950/80 border border-zinc-800/80 space-y-1">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 font-mono">
-                      Original Test Idea:
+                      {t("cockpit.originalTestIdea", "Original Test Idea:")}
                     </span>
                     <p className="text-xs text-zinc-300 leading-relaxed font-mono">
                       {opp.suggested_original_angle}
@@ -421,16 +419,16 @@ export default function CreatorCockpitPage() {
                   {/* Content Family & Estimates */}
                   <div className="flex items-center justify-between text-xs text-zinc-400 pt-1">
                     <span className="font-medium text-zinc-300">
-                      Family: {opp.suggested_content_family}
+                      {t("cockpit.family", "Family:")} {opp.suggested_content_family}
                     </span>
                     <div className="flex items-center gap-3">
-                      <span>Effort: <strong className="text-zinc-200 capitalize">{opp.production_effort}</strong></span>
-                      <span>Cost: <strong className="text-emerald-400">${opp.estimated_cost.toFixed(2)}</strong></span>
+                      <span>{t("cockpit.effort", "Effort:")} <strong className="text-zinc-200 capitalize">{opp.production_effort}</strong></span>
+                      <span>{t("cockpit.cost", "Cost:")} <strong className="text-emerald-400">${opp.estimated_cost.toFixed(2)}</strong></span>
                     </div>
                   </div>
                 </div>
 
-                {/* Human Gate Decision Buttons (Mandatory Spec Item) */}
+                {/* Human Gate Decision Buttons */}
                 <div className="pt-4 border-t border-zinc-800/80 flex items-center justify-between gap-2">
                   {opp.status === "research_ready" || opp.status === "approved" ? (
                     <Link
@@ -438,7 +436,7 @@ export default function CreatorCockpitPage() {
                       className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
                     >
                       <Boxes className="w-3.5 h-3.5" />
-                      Create Content Family
+                      {t("cockpit.createContentFamily", "Create Content Family")}
                     </Link>
                   ) : (
                     <button
@@ -446,7 +444,7 @@ export default function CreatorCockpitPage() {
                       className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      Research
+                      {t("cockpit.approveResearch", "Research")}
                     </button>
                   )}
 
@@ -455,13 +453,13 @@ export default function CreatorCockpitPage() {
                     className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg text-xs font-semibold border border-zinc-700 transition flex items-center justify-center gap-1.5"
                   >
                     <Eye className="w-3.5 h-3.5 text-amber-400" />
-                    Watch
+                    {t("cockpit.watch", "Watch")}
                   </button>
 
                   <button
                     onClick={() => handleReject(opp.id, opp.topic)}
                     className="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-rose-400 rounded-lg border border-zinc-700 transition"
-                    title="Reject topic"
+                    title={t("cockpit.rejectTopic", "Reject topic")}
                   >
                     <XCircle className="w-4 h-4" />
                   </button>
@@ -472,15 +470,17 @@ export default function CreatorCockpitPage() {
         ) : (
           <div className="p-8 rounded-2xl border border-dashed border-zinc-800 text-center space-y-3">
             <Compass className="w-10 h-10 text-zinc-600 mx-auto" />
-            <h4 className="text-sm font-semibold text-white">No active opportunities in review</h4>
+            <h4 className="text-sm font-semibold text-white">
+              {t("cockpit.noActiveOpportunities", "No active opportunities in review")}
+            </h4>
             <p className="text-xs text-zinc-400 max-w-sm mx-auto">
-              Run Opportunity intelligence analysis on discovered RSS candidates and trend topics to generate new proposals.
+              {t("cockpit.noActiveOpportunitiesDesc", "Run Opportunity intelligence analysis on discovered RSS candidates and trend topics to generate new proposals.")}
             </p>
             <button
               onClick={handleRunOpportunityAnalysis}
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition"
             >
-              Analyze Opportunities Now
+              {t("cockpit.analyzeOpportunitiesNow", "Analyze Opportunities Now")}
             </button>
           </div>
         )}
@@ -492,14 +492,14 @@ export default function CreatorCockpitPage() {
           <div className="flex items-center gap-2">
             <Activity className="w-4 h-4 text-indigo-400" />
             <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-300">
-              Engine Health Summary
+              {t("cockpit.engineHealthSummary", "Engine Health Summary")}
             </h4>
           </div>
           <Link
             href="/engines"
             className="text-xs font-medium text-zinc-400 hover:text-white flex items-center gap-1"
           >
-            Configure Engines
+            {t("cockpit.configureEngines", "Configure Engines")}
             <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
@@ -523,7 +523,9 @@ export default function CreatorCockpitPage() {
               </div>
             ))
           ) : (
-            <div className="text-xs text-zinc-500 col-span-full">Engine catalog initializing...</div>
+            <div className="text-xs text-zinc-500 col-span-full">
+              {t("cockpit.engineCatalogInit", "Engine catalog initializing...")}
+            </div>
           )}
         </div>
       </div>

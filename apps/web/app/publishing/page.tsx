@@ -19,8 +19,10 @@ import {
 } from "lucide-react";
 import { PublishableItemSummary, listPublishableItems } from "@/lib/api";
 import { getPlatformIcon } from "@/components/PlatformIcons";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function PublishingHubPage() {
+  const { t } = useLanguage();
   const [items, setItems] = useState<PublishableItemSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -54,16 +56,18 @@ export default function PublishingHubPage() {
           <div className="flex items-center gap-2 mb-1">
             <span className="px-2.5 py-0.5 rounded text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 font-mono">
               <Share2 className="w-3.5 h-3.5" />
-              Phase 13 Active
+              {t("publishing.phaseNotice", "Phase 13 Active")}
             </span>
             <span className="text-xs text-slate-500">&bull;</span>
-            <span className="text-xs text-slate-400 font-mono">Manual Platform Publishing</span>
+            <span className="text-xs text-slate-400 font-mono">
+              {t("publishing.manualNotice", "Manual Platform Publishing")}
+            </span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
-            Publishing Hub & Platform Launchers
+            {t("publishing.title", "Publishing Hub & Platform Launchers")}
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Manage offline export packages, 7-point pre-flight checklists, copyable metadata, and browser distribution launchers.
+            {t("publishing.subtitle", "Manage offline export packages, 7-point pre-flight checklists, copyable metadata, and browser distribution launchers.")}
           </p>
         </div>
 
@@ -72,13 +76,13 @@ export default function PublishingHubPage() {
             href="/settings"
             className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 border border-slate-700 transition flex items-center gap-1.5"
           >
-            Configure Channels &rarr;
+            {t("publishing.configureChannels", "Configure Channels →")}
           </Link>
           <button
             onClick={() => loadData(filterStatus)}
             disabled={loading}
             className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition"
-            title="Refresh items"
+            title={t("common.refresh", "Refresh")}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
@@ -89,41 +93,37 @@ export default function PublishingHubPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
-            Offline Packages
+            {t("publishing.exportedPackages", "Offline Packages")}
           </span>
           <div className="mt-2 text-2xl font-bold text-white flex items-baseline gap-2">
             {exportedCount}
-            <span className="text-xs text-slate-500 font-normal">assembled</span>
           </div>
         </div>
 
         <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-500/30">
           <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider block">
-            Ready to Publish
+            {t("publishing.readyToPublish", "Ready to Publish")}
           </span>
           <div className="mt-2 text-2xl font-bold text-amber-400 flex items-baseline gap-2">
             {readyToPublishCount}
-            <span className="text-xs text-slate-500 font-normal">items</span>
           </div>
         </div>
 
         <div className="p-4 rounded-xl bg-sky-950/20 border border-sky-500/30">
           <span className="text-xs font-semibold text-sky-400 uppercase tracking-wider block">
-            Partially Published
+            {t("publishing.partiallyPublished", "Partially Published")}
           </span>
           <div className="mt-2 text-2xl font-bold text-sky-400 flex items-baseline gap-2">
             {partiallyPublishedCount}
-            <span className="text-xs text-slate-500 font-normal">items</span>
           </div>
         </div>
 
         <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30">
           <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider block">
-            Fully Published
+            {t("publishing.fullyPublished", "Fully Published")}
           </span>
           <div className="mt-2 text-2xl font-bold text-emerald-400 flex items-baseline gap-2">
             {publishedCount}
-            <span className="text-xs text-slate-500 font-normal">items</span>
           </div>
         </div>
       </div>

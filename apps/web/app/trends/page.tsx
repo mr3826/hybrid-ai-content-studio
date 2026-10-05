@@ -31,8 +31,10 @@ import {
   suppressTrend,
   createManualSignal,
 } from "@/lib/api";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function TrendsPage() {
+  const { t, isBangla } = useLanguage();
   const [trends, setTrends] = useState<TrendTopic[]>([]);
   const [loading, setLoading] = useState(true);
   const [runningAnalysis, setRunningAnalysis] = useState(false);
@@ -218,13 +220,13 @@ export default function TrendsPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-                Trends Engine
+                {t("trends.title", "Trends Engine")}
                 <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
                   Zero Paid APIs
                 </span>
               </h1>
               <p className="text-sm text-zinc-400">
-                What is gaining momentum inside our niche? Velocity, cross-source grouping & explainable scoring.
+                {t("trends.subtitle", "What is gaining momentum inside our niche? Velocity, cross-source grouping & explainable scoring.")}
               </p>
             </div>
           </div>
@@ -237,7 +239,7 @@ export default function TrendsPage() {
             className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm font-medium border border-zinc-700 transition flex items-center gap-2 disabled:opacity-50"
           >
             <Play className="w-4 h-4 text-zinc-400" />
-            Dry Run
+            {isBangla ? "টেস্ট রান" : "Dry Run"}
           </button>
 
           <button
@@ -246,7 +248,9 @@ export default function TrendsPage() {
             className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-sm font-medium transition shadow-lg shadow-rose-600/20 flex items-center gap-2 disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${runningAnalysis ? "animate-spin" : ""}`} />
-            Run Trends
+            {runningAnalysis
+              ? (isBangla ? "এনালাইসিস চলছে..." : "Running...")
+              : (isBangla ? "ট্রেন্ড এনালাইসিস চালান" : "Run Trends")}
           </button>
 
           <button
@@ -254,7 +258,7 @@ export default function TrendsPage() {
             className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-sm font-medium border border-zinc-700 transition flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Add Signal
+            {isBangla ? "নতুন সিগন্যাল যোগ" : "Add Signal"}
           </button>
         </div>
       </div>

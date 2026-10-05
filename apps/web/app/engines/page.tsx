@@ -27,8 +27,10 @@ import {
   EngineResult
 } from "@/lib/api";
 import EngineTesterModal from "@/components/EngineTesterModal";
+import { useLanguage } from "@/lib/LanguageContext";
 
 export default function EnginesPage() {
+  const { t, isBangla } = useLanguage();
   const [engines, setEngines] = useState<EngineSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -171,10 +173,10 @@ export default function EnginesPage() {
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
             <Cpu className="w-6 h-6 text-indigo-400" />
-            Feature Engine Registry
+            {t("engines.title", "Feature Engine Registry")}
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Independent, decoupled feature engines with strict contracts, isolated rules, dry runs, and explainability.
+            {t("engines.subtitle", "Independent, decoupled feature engines with strict contracts, isolated rules, dry runs, and explainability.")}
           </p>
         </div>
         <button
@@ -183,36 +185,52 @@ export default function EnginesPage() {
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-          Refresh Registry
+          {t("common.refresh", "Refresh")}
         </button>
       </div>
 
       {/* Top Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-          <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Engines</div>
+          <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+            {isBangla ? "মোট ইঞ্জিন" : "Total Engines"}
+          </div>
           <div className="text-2xl font-bold text-white mt-1">{engines.length}</div>
-          <div className="text-xs text-slate-400 mt-0.5">13 Feature + 1 Reference</div>
+          <div className="text-xs text-slate-400 mt-0.5">
+            {isBangla ? "১৩টি ফিচার ইঞ্জিন" : "13 Feature Engines"}
+          </div>
         </div>
 
         <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-          <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">Health Status</div>
+          <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+            {isBangla ? "সিস্টেম পরিস্থিতি" : "Health Status"}
+          </div>
           <div className="text-2xl font-bold text-emerald-400 mt-1">
             {healthyCount} / {engines.length}
           </div>
-          <div className="text-xs text-slate-400 mt-0.5">Operational engines</div>
+          <div className="text-xs text-slate-400 mt-0.5">
+            {isBangla ? "সবগুলো কার্যকর" : "Operational engines"}
+          </div>
         </div>
 
         <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-          <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">Engine Isolation</div>
+          <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+            {isBangla ? "ইঞ্জিন আইসোলেশন" : "Engine Isolation"}
+          </div>
           <div className="text-2xl font-bold text-indigo-400 mt-1">100%</div>
-          <div className="text-xs text-slate-400 mt-0.5">Stable contracts & manifests</div>
+          <div className="text-xs text-slate-400 mt-0.5">
+            {isBangla ? "স্বাধীন চুক্তি ও ম্যানিফেস্ট" : "Stable contracts & manifests"}
+          </div>
         </div>
 
         <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
-          <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">Auditability</div>
+          <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+            {isBangla ? "অডিট ও ডাটাবেজ" : "Auditability"}
+          </div>
           <div className="text-2xl font-bold text-sky-400 mt-1">WAL Mode</div>
-          <div className="text-xs text-slate-400 mt-0.5">SQLite run logs active</div>
+          <div className="text-xs text-slate-400 mt-0.5">
+            {isBangla ? "SQLite লোকাল ডাটাবেজ" : "SQLite run logs active"}
+          </div>
         </div>
       </div>
 
