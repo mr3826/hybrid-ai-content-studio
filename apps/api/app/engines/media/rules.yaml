@@ -1,0 +1,34 @@
+version: 1.0.0
+voice:
+  sample_rate: 44100
+  default_speed: 1.0
+  min_speed: 0.8
+  max_speed: 1.3
+  default_voice: "en-US-Studio-Standard"
+  silence_gap_sec: 0.2
+  fade_duration_sec: 0.05
+  waveform_samples: 50
+
+subtitles:
+  max_words_per_chunk_vertical: 4
+  max_words_per_chunk_horizontal: 9
+  target_cps: 17.0
+  burn_in_font_size: 42
+  highlight_color: "#F59E0B"
+  primary_color: "#FFFFFF"
+  outline_color: "#000000"
+
+composition:
+  default_fps: 30
+  vertical_resolution:
+    width: 1080
+    height: 1920
+  horizontal_resolution:
+    width: 1920
+    height: 1080
+  video_codec: "libx264"
+  audio_codec: "aac"
+  audio_bitrate: "192k"
+  pixel_format: "yuv420p"
+  crf: 22
+  preset: "fast"

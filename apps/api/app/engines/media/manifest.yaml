@@ -1,0 +1,18 @@
+id: media
+name: Voice, Subtitle & Media Engine
+description: Local voice audio synthesis, synchronized timed captioning, and FFmpeg video timeline composition with zero paid dependencies.
+version: 1.0.0
+inputs:
+  - StoryboardMediaRequest
+  - VoiceConfig
+  - SubtitleConfig
+outputs:
+  - MediaPackage
+  - VoiceTracks
+  - TimedCaptions
+  - RenderedVideo
+dependencies: []
+capabilities:
+  dry_run: true
+  explain: true
+  health_check: true

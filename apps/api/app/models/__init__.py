@@ -46,6 +46,12 @@ from app.models.scene import (
     SceneStatus,
     TransitionType,
 )
+from app.models.media import (
+    MediaPackage,
+    SceneVoiceTrack,
+    MediaPackageStatus,
+    MediaResolution,
+)
 
 __all__ = [
     "Base",
@@ -95,6 +101,10 @@ __all__ = [
     "VisualPriority",
     "SceneStatus",
     "TransitionType",
+    "MediaPackage",
+    "SceneVoiceTrack",
+    "MediaPackageStatus",
+    "MediaResolution",
 ]
 
 

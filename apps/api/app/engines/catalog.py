@@ -16,6 +16,7 @@ from app.engines.content.engine import ContentEngine
 from app.engines.export.engine import ExportEngine
 from app.engines.asset_rights.engine import AssetRightsEngine
 from app.engines.scene_studio.engine import SceneStudioEngine
+from app.engines.media.engine import MediaEngine
 
 CATALOG_DEFINITIONS = [
 
@@ -212,9 +213,12 @@ def register_all_catalog_engines() -> None:
     scene_studio_engine = SceneStudioEngine()
     engine_registry.register(scene_studio_engine, replace=True)
 
+    media_engine = MediaEngine()
+    engine_registry.register(media_engine, replace=True)
+
     # Register remaining catalog engines as placeholders if not already registered
     for d in CATALOG_DEFINITIONS:
-        if d["id"] in ("niche_guard", "brand", "rss", "trends", "opportunity", "research", "evidence", "ai", "originality", "content_family", "content", "export", "asset_rights", "scene_studio"):
+        if d["id"] in ("niche_guard", "brand", "rss", "trends", "opportunity", "research", "evidence", "ai", "originality", "content_family", "content", "export", "asset_rights", "scene_studio", "media"):
             continue
         if not engine_registry.get(d["id"]):
             manifest = EngineManifest(**d)

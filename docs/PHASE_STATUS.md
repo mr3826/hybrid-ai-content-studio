@@ -20,7 +20,7 @@
 | **Validation Gate** | Real-World Content Validation Gate | PASS | `53a2f59` | Protocol defined | Established in docs/CONTENT_VALIDATION_PROTOCOL.md |
 | **Phase 14** | Asset Rights Engine | PASS | `607fa39` | 68 pytest passed, web build passed | Provenance registry, license classifier, commercial status, attribution obligations, live evaluator & bilingual UI |
 | **Phase 15** | Scene & Asset Studio | PASS | `f1aef53` | 74 pytest passed, web build passed | Evidence visual hierarchy, storyboard decomposition, local SVG generator, asset catalog & bilingual UI |
-| **Phase 16** | Voice, Subtitle & Media Engine | NOT_STARTED | - | - | Prerequisite: Phase 15 pass |
+| **Phase 16** | Voice, Subtitle & Media Engine | PASS | `11a9590` | 80 pytest passed, web build passed | Local deterministic speech synthesis, sub-second SRT/VTT caption sync, local FFmpeg composition & bilingual UI |
 | **Phase 17** | Final Creator Quality Gate | NOT_STARTED | - | - | Prerequisite: Phase 16 pass |
 | **Phase 18** | Creator Business Analytics Engine | NOT_STARTED | - | - | Prerequisite: Phase 17 pass |
 | **Phase 19** | Human-Approved Feedback Engine | NOT_STARTED | - | - | Prerequisite: Phase 18 pass |

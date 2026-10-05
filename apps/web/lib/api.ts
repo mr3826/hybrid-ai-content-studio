@@ -2620,6 +2620,141 @@ export async function listMediaAssets(params?: {
   return await request<MediaAsset[]>(`/api/v1/scenes/assets${qs}`);
 }
 
+// ==========================================
+// PHASE 16: VOICE, SUBTITLE & MEDIA STUDIO
+// ==========================================
+
+export interface VoiceProfile {
+  id: string;
+  name: string;
+  gender: string;
+  locale: string;
+  pitch_factor: number;
+  sample_rate: number;
+  is_offline_ready: boolean;
+}
+
+export interface SceneVoiceTrack {
+  id: string;
+  scene_id: string;
+  voice_id: string;
+  audio_path: string;
+  duration_sec: number;
+  word_count: number;
+  waveform_peaks: number[];
+  created_at: string;
+}
+
+export interface MediaPackage {
+  id: string;
+  script_id: string;
+  content_item_id?: string | null;
+  format: string;
+  resolution: string;
+  status: "draft" | "synthesizing" | "rendering" | "ready" | "failed";
+  total_duration_sec: number;
+  audio_path?: string | null;
+  subtitle_path?: string | null;
+  video_path?: string | null;
+  timeline_path?: string | null;
+  voice_settings: Record<string, any>;
+  subtitle_settings: Record<string, any>;
+  quality_checks: Record<string, any>;
+  voice_tracks: SceneVoiceTrack[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubtitleCue {
+  index: number;
+  start_sec: number;
+  end_sec: number;
+  start_timecode: string;
+  end_timecode: string;
+  text: string;
+}
+
+export interface SubtitleGenerationOutput {
+  script_id: string;
+  format: string;
+  subtitle_path: string;
+  cue_count: number;
+  cues: SubtitleCue[];
+  srt_content: string;
+}
+
+export interface VoiceSynthesizeResponse {
+  package_id: string;
+  script_id: string;
+  status: string;
+  tracks_count: number;
+  total_duration_sec: number;
+  master_audio_path: string;
+  tracks: SceneVoiceTrack[];
+}
+
+export interface MediaRenderResponse {
+  package_id: string;
+  script_id: string;
+  status: string;
+  resolution: string;
+  video_path: string;
+  duration_sec: number;
+  quality_report: Record<string, any>;
+}
+
+export async function getVoiceProfiles(): Promise<VoiceProfile[]> {
+  return await request<VoiceProfile[]>("/api/v1/media/voices");
+}
+
+export async function getMediaPackageByScript(scriptId: string): Promise<MediaPackage | null> {
+  return await request<MediaPackage | null>(`/api/v1/media/script/${scriptId}`);
+}
+
+export async function synthesizeScriptVoice(
+  scriptId: string,
+  payload?: {
+    voice_id?: string;
+    speed?: number;
+    pitch_shift?: number;
+  }
+): Promise<VoiceSynthesizeResponse> {
+  return await request<VoiceSynthesizeResponse>(`/api/v1/media/voice/${scriptId}`, {
+    method: "POST",
+    body: JSON.stringify(payload || {}),
+  });
+}
+
+export async function generateScriptSubtitles(
+  scriptId: string,
+  payload?: {
+    format?: string;
+    max_words_per_cue?: number;
+    highlight_keywords?: boolean;
+  }
+): Promise<SubtitleGenerationOutput> {
+  return await request<SubtitleGenerationOutput>(`/api/v1/media/subtitles/${scriptId}`, {
+    method: "POST",
+    body: JSON.stringify(payload || {}),
+  });
+}
+
+export async function renderScriptMedia(
+  scriptId: string,
+  payload?: {
+    resolution?: string;
+    fps?: number;
+    burn_subtitles?: boolean;
+    overlay_watermark?: boolean;
+  }
+): Promise<MediaRenderResponse> {
+  return await request<MediaRenderResponse>(`/api/v1/media/render/${scriptId}`, {
+    method: "POST",
+    body: JSON.stringify(payload || {}),
+  });
+}
+
+
 
 
 
