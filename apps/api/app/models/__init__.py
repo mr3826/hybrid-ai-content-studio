@@ -53,6 +53,7 @@ from app.models.media import (
     MediaResolution,
 )
 from app.models.quality_gate import QualityGateAudit
+from app.models.analytics import PublicationMetricsSnapshot
 
 __all__ = [
     "Base",
@@ -107,6 +108,7 @@ __all__ = [
     "MediaPackageStatus",
     "MediaResolution",
     "QualityGateAudit",
+    "PublicationMetricsSnapshot",
 ]
 
 

@@ -6,6 +6,8 @@
 # Local storage and runtime directories
 data/*
 !data/.gitkeep
+apps/api/data/*
+!apps/api/data/.gitkeep
 runtime/
 cache/
 tmp/

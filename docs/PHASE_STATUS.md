@@ -22,7 +22,7 @@
 | **Phase 15** | Scene & Asset Studio | PASS | `f1aef53` | 74 pytest passed, web build passed | Evidence visual hierarchy, storyboard decomposition, local SVG generator, asset catalog & bilingual UI |
 | **Phase 16** | Voice, Subtitle & Media Engine | PASS | `06f5262` | 80 pytest passed, web build passed | Local deterministic speech synthesis, sub-second SRT/VTT caption sync, local FFmpeg composition & bilingual UI |
 | **Phase 17** | Final Creator Quality Gate | PASS | `35ccad6` | 86 pytest passed, web build passed | 9 creator quality dimensions, actionable correction routes, approval gate & bilingual UI |
-| **Phase 18** | Creator Business Analytics Engine | NOT_STARTED | - | - | Prerequisite: Phase 17 pass |
+| **Phase 18** | Creator Business Analytics Engine | PASS | `bf0cbdc` | 93 pytest passed, web build passed | Manual platform metrics, CSV import, 3s hook retention rankings, creator economics & ROI, bilingual UI |
 | **Phase 19** | Human-Approved Feedback Engine | NOT_STARTED | - | - | Prerequisite: Phase 18 pass |
 | **Phase 20** | Owned Audience Tracking | NOT_STARTED | - | - | Prerequisite: Phase 19 pass |
 | **Phase 21** | Cleanup, Backup & Reliability | NOT_STARTED | - | - | Prerequisite: Phase 20 pass |

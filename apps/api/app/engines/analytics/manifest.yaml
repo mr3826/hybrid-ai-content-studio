@@ -1,0 +1,22 @@
+id: analytics
+name: Analytics Engine
+version: 1.0.0
+description: Analyzes manual publication metrics, hook performance, retention curves, and content ROI.
+inputs:
+  - PublicationMetricsSnapshot
+  - ContentItem
+  - ScriptDraft
+outputs:
+  - AnalyticsSummaryReport
+  - HookPerformanceInsight
+  - PlatformPerformanceBreakdown
+  - ContentROIAnalysis
+dependencies: []
+triggers:
+  - manual
+  - snapshot_recorded
+supports:
+  dry_run: true
+  explain: true
+  health_check: true
+  configure: true

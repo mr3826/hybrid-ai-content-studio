@@ -2841,6 +2841,194 @@ export async function getQualityGateSummary(): Promise<QualityGateSummary> {
   return await request<QualityGateSummary>("/api/v1/quality-gate/summary");
 }
 
+// ---------------------------------------------------------
+// Phase 18: Creator Business Analytics Engine
+// ---------------------------------------------------------
+
+export interface SnapshotCreatePayload {
+  content_item_id: string;
+  platform: string;
+  snapshot_timestamp?: string;
+  snapshot_label?: string;
+  platform_publication_id?: string | null;
+  views?: number;
+  impressions?: number;
+  watch_time_seconds?: number;
+  average_view_duration_seconds?: number;
+  retention_rate_pct?: number;
+  hook_retention_3s_pct?: number | null;
+  hook_retention_30s_pct?: number | null;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  saves?: number;
+  clicks?: number;
+  subscribers_gained?: number;
+  revenue_estimated_usd?: number;
+  notes?: string;
+  source?: string;
+  raw_metadata?: Record<string, any>;
+}
+
+export interface SnapshotResponse {
+  id: string;
+  content_item_id: string;
+  platform_publication_id?: string | null;
+  platform: string;
+  snapshot_timestamp: string;
+  snapshot_label: string;
+  views: number;
+  impressions: number;
+  watch_time_seconds: number;
+  average_view_duration_seconds: number;
+  retention_rate_pct: number;
+  hook_retention_3s_pct?: number | null;
+  hook_retention_30s_pct?: number | null;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  clicks: number;
+  subscribers_gained: number;
+  revenue_estimated_usd: number;
+  engagement_rate_pct: number;
+  notes?: string | null;
+  source: string;
+  raw_metadata: Record<string, any>;
+  created_at: string;
+}
+
+export interface HookPerformanceInsight {
+  content_item_id: string;
+  content_title: string;
+  hook_text: string;
+  platform: string;
+  views: number;
+  hook_retention_3s_pct: number;
+  hook_retention_30s_pct?: number | null;
+  verdict: "VIRAL" | "STRONG" | "ACCEPTABLE" | "CRITICAL_DROP";
+  recommendation: string;
+}
+
+export interface PlatformBreakdown {
+  platform: string;
+  total_posts: number;
+  total_views: number;
+  total_likes: number;
+  total_comments: number;
+  total_shares: number;
+  total_revenue: number;
+  avg_engagement_rate: number;
+  avg_retention_rate: number;
+}
+
+export interface ContentROIAnalysis {
+  content_item_id: string;
+  content_title: string;
+  ai_cost_usd: number;
+  creator_time_minutes: number;
+  creator_cost_usd: number;
+  total_cost_usd: number;
+  total_revenue_usd: number;
+  total_views: number;
+  net_profit_usd: number;
+  roi_multiplier: number;
+  revenue_per_1k_views_rpm: number;
+  status: "HIGH_ROI" | "PROFITABLE" | "BREAK_EVEN" | "NEGATIVE";
+}
+
+export interface AnalyticsSummaryReport {
+  total_snapshots: number;
+  total_published_items: number;
+  total_views: number;
+  total_impressions: number;
+  total_watch_time_hours: number;
+  total_engagements: number;
+  overall_engagement_rate_pct: number;
+  avg_3s_hook_retention_pct: number;
+  total_revenue_usd: number;
+  total_production_cost_usd: number;
+  overall_roi_multiplier: number;
+  platforms: PlatformBreakdown[];
+  top_hooks: HookPerformanceInsight[];
+  recent_snapshots: SnapshotResponse[];
+}
+
+export interface ItemAnalyticsResponse {
+  content_item_id: string;
+  total_snapshots: number;
+  total_views: number;
+  total_likes: number;
+  total_comments: number;
+  total_shares: number;
+  total_revenue_usd: number;
+  engagement_rate_pct: number;
+  roi_analysis: ContentROIAnalysis;
+  snapshots: SnapshotResponse[];
+}
+
+export interface CSVImportResponse {
+  imported_count: number;
+  failed_count: number;
+  errors: string[];
+  snapshot_ids: string[];
+}
+
+export async function recordSnapshot(payload: SnapshotCreatePayload): Promise<SnapshotResponse> {
+  return await request<SnapshotResponse>("/api/v1/analytics/snapshots", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listSnapshots(
+  contentItemId?: string,
+  platform?: string,
+  limit: number = 100
+): Promise<SnapshotResponse[]> {
+  const params = new URLSearchParams();
+  if (contentItemId) params.append("content_item_id", contentItemId);
+  if (platform) params.append("platform", platform);
+  params.append("limit", limit.toString());
+  return await request<SnapshotResponse[]>(`/api/v1/analytics/snapshots?${params.toString()}`);
+}
+
+export async function getSnapshot(snapshotId: string): Promise<SnapshotResponse> {
+  return await request<SnapshotResponse>(`/api/v1/analytics/snapshots/${snapshotId}`);
+}
+
+export async function deleteSnapshot(snapshotId: string): Promise<{ deleted: boolean; id: string }> {
+  return await request<{ deleted: boolean; id: string }>(`/api/v1/analytics/snapshots/${snapshotId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getItemAnalytics(contentItemId: string): Promise<ItemAnalyticsResponse> {
+  return await request<ItemAnalyticsResponse>(`/api/v1/analytics/item/${contentItemId}`);
+}
+
+export async function getAnalyticsSummary(days: number = 30): Promise<AnalyticsSummaryReport> {
+  return await request<AnalyticsSummaryReport>(`/api/v1/analytics/summary?days=${days}`);
+}
+
+export async function getHookRankings(limit: number = 20): Promise<HookPerformanceInsight[]> {
+  return await request<HookPerformanceInsight[]>(`/api/v1/analytics/hooks?limit=${limit}`);
+}
+
+export async function importCSVSnapshots(csvContent: string): Promise<CSVImportResponse> {
+  return await request<CSVImportResponse>("/api/v1/analytics/import-csv", {
+    method: "POST",
+    body: JSON.stringify({ csv_content: csvContent }),
+  });
+}
+
+export async function runAnalyticsEngine(params?: Record<string, any>): Promise<any> {
+  return await request<any>("/api/v1/analytics/run-engine", {
+    method: "POST",
+    body: JSON.stringify(params || {}),
+  });
+}
+
 
 
 

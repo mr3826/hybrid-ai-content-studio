@@ -1,0 +1,44 @@
+engagement_benchmarks:
+  poor: 1.5
+  acceptable: 3.0
+  good: 5.0
+  exceptional: 8.0
+
+hook_retention_benchmarks:
+  critical_drop: 40.0
+  acceptable: 55.0
+  strong: 70.0
+  viral: 80.0
+
+retention_rate_benchmarks:
+  short_form: 70.0
+  mid_form: 45.0
+  long_form: 35.0
+
+roi_benchmarks:
+  break_even: 1.0
+  target: 2.5
+  exceptional: 5.0
+
+cost_defaults:
+  creator_hourly_rate_usd: 50.0
+  default_production_minutes: 45.0
+
+supported_platforms:
+  - youtube
+  - facebook
+  - instagram
+  - tiktok
+  - blog
+  - newsletter
+  - linkedin
+  - x
+
+standard_snapshot_labels:
+  - 24h
+  - 48h
+  - 7d
+  - 14d
+  - 30d
+  - 90d
+  - lifetime

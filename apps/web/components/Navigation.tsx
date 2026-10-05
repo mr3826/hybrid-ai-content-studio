@@ -21,6 +21,7 @@ import {
   Video,
   Headphones,
   CheckSquare,
+  BarChart3,
 } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 
@@ -38,6 +39,7 @@ const NAV_CONFIG = [
   { href: "/scene-studio", key: "nav.sceneStudio", fallback: "Scene Studio", icon: Video },
   { href: "/media-studio", key: "nav.mediaStudio", fallback: "Media Studio", icon: Headphones },
   { href: "/quality-gate", key: "nav.qualityGate", fallback: "Quality Gate", icon: CheckSquare },
+  { href: "/analytics", key: "nav.analytics", fallback: "Analytics", icon: BarChart3 },
   { href: "/ai", key: "nav.ai", fallback: "AI Engine", icon: Bot },
   { href: "/projects", key: "nav.projects", fallback: "Projects", icon: Film },
   { href: "/engines", key: "nav.engines", fallback: "Engines", icon: Cpu },
