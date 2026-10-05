@@ -1,0 +1,57 @@
+version: "1.0.0"
+
+# Evidence-first visual priority hierarchy (ranks 1 to 7)
+visual_priority_hierarchy:
+  - id: "real_screen_recording"
+    rank: 1
+    name: "Real Screen Recording"
+    description: "Actual screen capture of developer terminal, code execution, or UI behavior."
+    is_empirical: true
+
+  - id: "benchmark_chart"
+    rank: 2
+    name: "Benchmark / Chart"
+    description: "Empirical latency, accuracy, token speed, or hardware comparison chart."
+    is_empirical: true
+
+  - id: "code_terminal"
+    rank: 3
+    name: "Code / Terminal"
+    description: "Syntax-highlighted code diff, configuration block, or CLI output."
+    is_empirical: true
+
+  - id: "workflow_diagram"
+    rank: 4
+    name: "Workflow Diagram"
+    description: "Architecture schematic, node flow, or pipeline interaction diagram."
+    is_empirical: false
+
+  - id: "product_screenshot"
+    rank: 5
+    name: "Product Screenshot"
+    description: "Static snapshot of software interface, settings, or dashboard."
+    is_empirical: false
+
+  - id: "original_motion_graphic"
+    rank: 6
+    name: "Original Motion Graphic"
+    description: "Branded animated accent, title card, transition, or callout."
+    is_empirical: false
+
+  - id: "generated_visual"
+    rank: 7
+    name: "Generated Visual"
+    description: "AI-generated contextual illustration or b-roll (fallback only)."
+    is_empirical: false
+
+pacing:
+  words_per_second: 2.4
+  min_scene_duration_sec: 1.5
+  max_scene_duration_sec: 12.0
+  max_short_duration_sec: 60.0
+  target_short_duration_sec: 55.0
+
+enforcement:
+  require_empirical_visual_for_claims: true
+  warn_on_low_priority_visual: true
+  max_consecutive_generated_visuals: 2

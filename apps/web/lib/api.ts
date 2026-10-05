@@ -2434,4 +2434,192 @@ export async function seedStarterAssetRights(): Promise<AssetRightsRecord[]> {
   });
 }
 
+// ==========================================
+// Phase 15: Scene + Asset Studio
+// ==========================================
+
+export interface SceneAssetRightsSummary {
+  id: string;
+  title: string;
+  license_type: string;
+  status: string;
+  attribution_required: boolean;
+  attribution_text?: string | null;
+}
+
+export interface Scene {
+  id: string;
+  script_id: string;
+  section_id?: string | null;
+  scene_order: number;
+  narration: string;
+  timing_estimate: number;
+  on_screen_text?: string | null;
+  visual_type: string;
+  visual_source?: string | null;
+  evidence_reference?: string | null;
+  asset_rights_record_id?: string | null;
+  transition: string;
+  status: string;
+  notes?: string | null;
+  asset_rights?: SceneAssetRightsSummary | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SceneCreateInput {
+  script_id: string;
+  section_id?: string;
+  scene_order?: number;
+  narration: string;
+  timing_estimate?: number;
+  on_screen_text?: string;
+  visual_type?: string;
+  visual_source?: string;
+  evidence_reference?: string;
+  asset_rights_record_id?: string;
+  transition?: string;
+  status?: string;
+  notes?: string;
+}
+
+export interface SceneUpdateInput {
+  narration?: string;
+  timing_estimate?: number;
+  on_screen_text?: string;
+  visual_type?: string;
+  visual_source?: string;
+  evidence_reference?: string;
+  asset_rights_record_id?: string;
+  transition?: string;
+  status?: string;
+  notes?: string;
+}
+
+export interface StoryboardSceneVerdict {
+  scene_id: string;
+  scene_order: number;
+  duration_sec: number;
+  visual_priority_level: number;
+  visual_type: string;
+  is_empirical: boolean;
+  rights_cleared: boolean;
+  flags: string[];
+}
+
+export interface StoryboardValidationResult {
+  script_id: string;
+  total_scenes: number;
+  total_duration_sec: number;
+  target_duration_sec?: number | null;
+  duration_delta_sec: number;
+  duration_status: string;
+  empirical_scene_count: number;
+  empirical_visual_ratio: number;
+  has_rights_blockers: boolean;
+  passed: boolean;
+  scenes: StoryboardSceneVerdict[];
+  recommendations: string[];
+}
+
+export interface MediaAsset {
+  id: string;
+  name: string;
+  file_path: string;
+  file_size: number;
+  mime_type: string;
+  asset_type: string;
+  visual_priority: number;
+  tags: string[];
+  asset_rights_record_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MediaAssetCreateInput {
+  name: string;
+  file_path?: string;
+  file_content_base64?: string;
+  file_name?: string;
+  mime_type?: string;
+  asset_type?: string;
+  tags?: string[];
+  license_type?: string;
+}
+
+export async function listScriptScenes(scriptId: string): Promise<Scene[]> {
+  return await request<Scene[]>(`/api/v1/scenes/script/${scriptId}`);
+}
+
+export async function decomposeScript(scriptId: string, replaceExisting: boolean = true): Promise<Scene[]> {
+  return await request<Scene[]>(`/api/v1/scenes/decompose/${scriptId}?replace_existing=${replaceExisting}`, {
+    method: "POST",
+  });
+}
+
+export async function createScene(payload: SceneCreateInput): Promise<Scene> {
+  return await request<Scene>("/api/v1/scenes", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getScene(sceneId: string): Promise<Scene> {
+  return await request<Scene>(`/api/v1/scenes/${sceneId}`);
+}
+
+export async function updateScene(sceneId: string, payload: SceneUpdateInput): Promise<Scene> {
+  return await request<Scene>(`/api/v1/scenes/${sceneId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteScene(sceneId: string): Promise<void> {
+  return await request<void>(`/api/v1/scenes/${sceneId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function reorderScenes(scriptId: string, sceneIds: string[]): Promise<Scene[]> {
+  return await request<Scene[]>(`/api/v1/scenes/reorder/${scriptId}`, {
+    method: "POST",
+    body: JSON.stringify({ scene_ids: sceneIds }),
+  });
+}
+
+export async function validateStoryboard(scriptId: string): Promise<StoryboardValidationResult> {
+  return await request<StoryboardValidationResult>(`/api/v1/scenes/validate-storyboard/${scriptId}`, {
+    method: "POST",
+  });
+}
+
+export async function generateScenePlaceholder(sceneId: string): Promise<Scene> {
+  return await request<Scene>(`/api/v1/scenes/generate-placeholder/${sceneId}`, {
+    method: "POST",
+  });
+}
+
+export async function registerMediaAsset(payload: MediaAssetCreateInput): Promise<MediaAsset> {
+  return await request<MediaAsset>("/api/v1/scenes/assets", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listMediaAssets(params?: {
+  asset_type?: string;
+  query?: string;
+  limit?: number;
+}): Promise<MediaAsset[]> {
+  const q = new URLSearchParams();
+  if (params?.asset_type && params.asset_type !== "all") q.set("asset_type", params.asset_type);
+  if (params?.query) q.set("query", params.query);
+  if (params?.limit) q.set("limit", String(params.limit));
+  const qs = q.toString() ? `?${q.toString()}` : "";
+  return await request<MediaAsset[]>(`/api/v1/scenes/assets${qs}`);
+}
+
+
+
 

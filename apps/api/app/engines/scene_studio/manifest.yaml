@@ -1,0 +1,22 @@
+id: "scene_studio"
+name: "Scene Studio Engine"
+version: "1.0.0"
+description: "Decomposes evidence-backed scripts into timed storyboard scenes with strict evidence-first visual priority hierarchy."
+enabled: true
+inputs:
+  - "ScriptDraft"
+  - "ScriptSection"
+  - "AssetInput"
+outputs:
+  - "SceneStoryboard"
+  - "StoryboardValidationResult"
+dependencies:
+  - "asset_rights"
+triggers:
+  - "manual"
+  - "script_approval"
+supports:
+  dry_run: true
+  explain: true
+  health_check: true
+  configure: true

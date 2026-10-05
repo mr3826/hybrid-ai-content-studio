@@ -18,6 +18,7 @@ import {
   FlaskConical,
   Boxes,
   Share2,
+  Video,
 } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 
@@ -32,6 +33,7 @@ const NAV_CONFIG = [
   { href: "/content-families", key: "nav.contentFamilies", fallback: "Content Families", icon: Boxes },
   { href: "/publishing", key: "nav.publishing", fallback: "Publishing", icon: Share2 },
   { href: "/asset-rights", key: "nav.assetRights", fallback: "Asset Rights", icon: ShieldAlert },
+  { href: "/scene-studio", key: "nav.sceneStudio", fallback: "Scene Studio", icon: Video },
   { href: "/ai", key: "nav.ai", fallback: "AI Engine", icon: Bot },
   { href: "/projects", key: "nav.projects", fallback: "Projects", icon: Film },
   { href: "/engines", key: "nav.engines", fallback: "Engines", icon: Cpu },

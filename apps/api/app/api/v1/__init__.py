@@ -19,6 +19,7 @@ from app.api.v1.content_families import router as content_families_router
 from app.api.v1.scripts import router as scripts_router
 from app.api.v1.export import router as export_router
 from app.api.v1.asset_rights import router as asset_rights_router
+from app.api.v1.scenes import router as scenes_router
 
 api_v1_router = APIRouter()
 api_v1_router.include_router(health_router)
@@ -41,5 +42,6 @@ api_v1_router.include_router(content_families_router)
 api_v1_router.include_router(scripts_router)
 api_v1_router.include_router(export_router)
 api_v1_router.include_router(asset_rights_router)
+api_v1_router.include_router(scenes_router)
 
 

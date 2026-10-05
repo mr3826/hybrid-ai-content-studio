@@ -39,6 +39,13 @@ from app.models.asset_rights import (
     AssetRightsStatus,
     CommercialUseStatus,
 )
+from app.models.scene import (
+    Scene,
+    MediaAsset,
+    VisualPriority,
+    SceneStatus,
+    TransitionType,
+)
 
 __all__ = [
     "Base",
@@ -83,6 +90,11 @@ __all__ = [
     "AssetRightsRecord",
     "AssetRightsStatus",
     "CommercialUseStatus",
+    "Scene",
+    "MediaAsset",
+    "VisualPriority",
+    "SceneStatus",
+    "TransitionType",
 ]
 
 

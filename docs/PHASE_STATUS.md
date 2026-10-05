@@ -19,7 +19,7 @@
 | **Phase 13** | Export & Publishing Assistant | PASS | `a6f9d30` | 145 pytest passed, web build passed | Offline export packages, SHA-256 integrity, 7-point checklist, 4-platform browser launchers & copy metadata tools |
 | **Validation Gate** | Real-World Content Validation Gate | PASS | `53a2f59` | Protocol defined | Established in docs/CONTENT_VALIDATION_PROTOCOL.md |
 | **Phase 14** | Asset Rights Engine | PASS | `607fa39` | 68 pytest passed, web build passed | Provenance registry, license classifier, commercial status, attribution obligations, live evaluator & bilingual UI |
-| **Phase 15** | Scene & Asset Studio | NOT_STARTED | - | - | Prerequisite: Phase 14 pass |
+| **Phase 15** | Scene & Asset Studio | PASS | `f1aef53` | 74 pytest passed, web build passed | Evidence visual hierarchy, storyboard decomposition, local SVG generator, asset catalog & bilingual UI |
 | **Phase 16** | Voice, Subtitle & Media Engine | NOT_STARTED | - | - | Prerequisite: Phase 15 pass |
 | **Phase 17** | Final Creator Quality Gate | NOT_STARTED | - | - | Prerequisite: Phase 16 pass |
 | **Phase 18** | Creator Business Analytics Engine | NOT_STARTED | - | - | Prerequisite: Phase 17 pass |
