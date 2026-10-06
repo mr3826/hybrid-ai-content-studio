@@ -24,6 +24,7 @@ import {
   BarChart3,
   Lightbulb,
   Users,
+  HardDrive,
 } from "lucide-react";
 import { useLanguage } from "@/lib/LanguageContext";
 
@@ -44,6 +45,7 @@ const NAV_CONFIG = [
   { href: "/analytics", key: "nav.analytics", fallback: "Analytics", icon: BarChart3 },
   { href: "/feedback", key: "nav.feedback", fallback: "Feedback & Memory", icon: Lightbulb },
   { href: "/audience", key: "nav.audience", fallback: "Owned Audience", icon: Users },
+  { href: "/cleanup", key: "nav.cleanup", fallback: "Cleanup & Backup", icon: HardDrive },
   { href: "/ai", key: "nav.ai", fallback: "AI Engine", icon: Bot },
   { href: "/projects", key: "nav.projects", fallback: "Projects", icon: Film },
   { href: "/engines", key: "nav.engines", fallback: "Engines", icon: Cpu },

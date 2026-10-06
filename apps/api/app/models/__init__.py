@@ -56,6 +56,7 @@ from app.models.quality_gate import QualityGateAudit
 from app.models.analytics import PublicationMetricsSnapshot
 from app.models.feedback import FeedbackLesson
 from app.models.audience import LeadMagnet, AudienceConversion
+from app.models.reliability import CleanupAuditLog, StudioBackupRecord
 
 __all__ = [
     "Base",
@@ -114,6 +115,8 @@ __all__ = [
     "FeedbackLesson",
     "LeadMagnet",
     "AudienceConversion",
+    "CleanupAuditLog",
+    "StudioBackupRecord",
 ]
 
 

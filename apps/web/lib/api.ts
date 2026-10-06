@@ -3362,6 +3362,168 @@ export async function explainAudienceEconomics(): Promise<AudienceExplainRespons
   return await request<AudienceExplainResponse>("/api/v1/audience/explain");
 }
 
+// ---------------------------------------------------------------------------
+// Phase 21: Cleanup, Backup & Reliability
+// ---------------------------------------------------------------------------
+
+export interface FileCandidateInfo {
+  path: string;
+  filename: string;
+  directory: string;
+  category: string;
+  size_bytes: number;
+  age_hours: number;
+  is_protected: boolean;
+  protection_reason?: string | null;
+  eligible_for_deletion: boolean;
+}
+
+export interface StorageInspectionSummary {
+  total_files_scanned: number;
+  total_bytes_scanned: number;
+  candidates_count: number;
+  recoverable_bytes: number;
+  protected_files_count: number;
+  directories_scanned: string[];
+  candidates: FileCandidateInfo[];
+}
+
+export interface CleanupReport {
+  id: string;
+  run_id: string;
+  mode: string;
+  scanned_files_count: number;
+  candidate_files_count: number;
+  deleted_files_count: number;
+  recovered_bytes: number;
+  status: string;
+  created_at?: string;
+  details: Record<string, any>[];
+}
+
+export interface StudioBackupRecord {
+  id: string;
+  backup_name: string;
+  filepath: string;
+  backup_type: string;
+  size_bytes: number;
+  checksum_sha256: string;
+  metadata_snapshot: Record<string, any>;
+  status: string;
+  created_at?: string;
+  notes?: string | null;
+}
+
+export interface BackupVerifyResponse {
+  backup_id: string;
+  is_valid: boolean;
+  calculated_checksum: string;
+  expected_checksum: string;
+  files_contained: string[];
+  message: string;
+}
+
+export interface SandboxRestoreResponse {
+  success: boolean;
+  status: string;
+  integrity_check?: string;
+  db_integrity?: string;
+  has_manifest: boolean;
+  extracted_files?: string[];
+  sandbox_path?: string;
+  message: string;
+  error?: string;
+}
+
+export interface ReliabilitySummaryResponse {
+  storage_usage_bytes: number;
+  database_size_bytes: number;
+  recoverable_bytes: number;
+  last_cleanup_timestamp?: string | null;
+  last_backup_timestamp?: string | null;
+  total_backups_count: number;
+  audit_logs_count: number;
+  active_policies: Record<string, any>;
+}
+
+export async function getReliabilitySummary(): Promise<ReliabilitySummaryResponse> {
+  return await request<ReliabilitySummaryResponse>("/api/v1/cleanup/summary");
+}
+
+export async function inspectStorage(payload?: {
+  target_directories?: string[];
+  dry_run?: boolean;
+}): Promise<StorageInspectionSummary> {
+  return await request<StorageInspectionSummary>("/api/v1/cleanup/inspect", {
+    method: "POST",
+    body: JSON.stringify(payload || { dry_run: true }),
+  });
+}
+
+export async function executeCleanup(payload: {
+  dry_run: boolean;
+  target_directories?: string[];
+  categories?: string[];
+  max_files_to_delete?: number;
+}): Promise<CleanupReport> {
+  return await request<CleanupReport>("/api/v1/cleanup/execute", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listCleanupLogs(limit: number = 50, offset: number = 0): Promise<CleanupReport[]> {
+  const params = new URLSearchParams({
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+  return await request<CleanupReport[]>(`/api/v1/cleanup/logs?${params.toString()}`);
+}
+
+export async function getCleanupLog(id: string): Promise<CleanupReport> {
+  return await request<CleanupReport>(`/api/v1/cleanup/logs/${id}`);
+}
+
+export async function createBackup(payload: {
+  backup_name?: string;
+  backup_type?: string;
+  notes?: string;
+}): Promise<StudioBackupRecord> {
+  return await request<StudioBackupRecord>("/api/v1/cleanup/backups", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listBackups(limit: number = 50, offset: number = 0): Promise<StudioBackupRecord[]> {
+  const params = new URLSearchParams({
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+  return await request<StudioBackupRecord[]>(`/api/v1/cleanup/backups?${params.toString()}`);
+}
+
+export async function getBackup(id: string): Promise<StudioBackupRecord> {
+  return await request<StudioBackupRecord>(`/api/v1/cleanup/backups/${id}`);
+}
+
+export async function verifyBackup(id: string): Promise<BackupVerifyResponse> {
+  return await request<BackupVerifyResponse>(`/api/v1/cleanup/backups/${id}/verify`, {
+    method: "POST",
+  });
+}
+
+export async function testRestoreBackup(
+  id: string,
+  payload?: { dry_run?: boolean }
+): Promise<SandboxRestoreResponse> {
+  return await request<SandboxRestoreResponse>(`/api/v1/cleanup/backups/${id}/test-restore`, {
+    method: "POST",
+    body: JSON.stringify(payload || { dry_run: true }),
+  });
+}
+
+
 
 
 

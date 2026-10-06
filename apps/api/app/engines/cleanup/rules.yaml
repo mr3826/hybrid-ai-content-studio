@@ -1,0 +1,19 @@
+rules_version: "1.0.0"
+
+retention_policies:
+  tmp_retention_hours: 24
+  cache_retention_hours: 24
+  failed_render_temp_days: 3
+  downloaded_source_days: 7
+  unused_generated_asset_days: 7
+  final_media_after_published_days: 30
+  exports_retention_days: 30
+
+protected_invariants:
+  never_delete_active_projects: true
+  never_delete_render_dependencies: true
+  never_delete_export_dependencies: true
+  never_delete_ready_publication_assets: true
+  never_delete_evidence_metadata: true
+  never_delete_license_proof: true
+  never_delete_analytics: true

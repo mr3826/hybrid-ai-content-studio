@@ -1,0 +1,14 @@
+id: cleanup
+name: Cleanup Engine
+version: 1.0.0
+description: Executes reference-safe storage retention, cache pruning, recoverable bytes calculation, safe deletion, and audit logging.
+category: maintenance
+dependencies: []
+inputs:
+  - StorageInspection
+outputs:
+  - CleanupReport
+capabilities:
+  dry_run: true
+  explain: true
+  health_check: true

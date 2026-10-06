@@ -129,7 +129,7 @@ async def test_analytics_api_full_flow(client: AsyncClient):
     assert len(summary["platforms"]) >= 1
 
     # 8. Get hook retention rankings
-    hooks_res = await client.get("/api/v1/analytics/hooks")
+    hooks_res = await client.get("/api/v1/analytics/hooks?limit=100")
     assert hooks_res.status_code == 200
     hooks = hooks_res.json()
     assert len(hooks) >= 1

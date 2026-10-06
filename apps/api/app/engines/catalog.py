@@ -21,6 +21,7 @@ from app.engines.quality_gate.engine import QualityGateEngine
 from app.engines.analytics.engine import AnalyticsEngine
 from app.engines.feedback.engine import FeedbackEngine
 from app.engines.audience.engine import AudienceEngine
+from app.engines.cleanup.engine import CleanupEngine
 
 CATALOG_DEFINITIONS = [
 
@@ -252,9 +253,12 @@ def register_all_catalog_engines() -> None:
     audience_engine = AudienceEngine()
     engine_registry.register(audience_engine, replace=True)
 
+    cleanup_engine = CleanupEngine()
+    engine_registry.register(cleanup_engine, replace=True)
+
     # Register remaining catalog engines as placeholders if not already registered
     for d in CATALOG_DEFINITIONS:
-        if d["id"] in ("niche_guard", "brand", "rss", "trends", "opportunity", "research", "evidence", "ai", "originality", "content_family", "content", "export", "asset_rights", "scene_studio", "media", "quality_gate", "analytics", "feedback", "audience"):
+        if d["id"] in ("niche_guard", "brand", "rss", "trends", "opportunity", "research", "evidence", "ai", "originality", "content_family", "content", "export", "asset_rights", "scene_studio", "media", "quality_gate", "analytics", "feedback", "audience", "cleanup"):
             continue
         if not engine_registry.get(d["id"]):
             manifest = EngineManifest(**d)
