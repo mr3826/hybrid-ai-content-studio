@@ -1,0 +1,21 @@
+id: audience
+name: Owned Audience Tracking Engine
+version: 1.0.0
+description: Converts rented social impressions into durable, owned audience assets (email subscribers, lead magnets, customer pipelines), computes subscriber economics (LTV, list value, conversion rates), generates traceable UTM campaigns, and attributes conversions across platforms.
+category: conversion
+dependencies:
+  - analytics
+  - brand
+inputs:
+  - lead_magnets
+  - audience_conversions
+  - content_items
+outputs:
+  - lead_magnet_analytics
+  - audience_summary
+  - utm_tracking_links
+  - platform_attribution
+capabilities:
+  dry_run: true
+  explain: true
+  health_check: true

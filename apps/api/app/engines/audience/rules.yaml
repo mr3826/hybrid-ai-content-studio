@@ -1,0 +1,37 @@
+rules_version: "1.0.0"
+
+target_conversion_rate_pct: 3.0
+critical_conversion_rate_pct: 1.0
+excellent_conversion_rate_pct: 5.0
+default_lead_value_usd: 15.0
+
+supported_magnet_types:
+  - cheat_sheet
+  - checklist
+  - template
+  - code_repository
+  - free_guide
+  - mini_course
+  - tool
+
+supported_platforms:
+  - youtube
+  - tiktok
+  - instagram
+  - facebook
+  - newsletter
+  - linkedin
+  - direct
+
+utm_defaults:
+  medium_mapping:
+    youtube: video_description
+    tiktok: bio_link
+    instagram: bio_link
+    facebook: post_link
+    newsletter: email_body
+    linkedin: post_link
+    direct: organic
+  campaign_prefix: "sc_"
+
+attribution_model: "last_touch_with_content"

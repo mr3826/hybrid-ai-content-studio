@@ -3159,6 +3159,209 @@ export async function explainFeedbackLesson(lessonId: string): Promise<FeedbackE
   return await request<FeedbackExplainResponse>(`/api/v1/feedback/explain/${lessonId}`);
 }
 
+// -------------------------------------------------------------
+// Phase 20: Owned Audience Tracking
+// -------------------------------------------------------------
+
+export interface LeadMagnet {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  magnet_type: "cheat_sheet" | "checklist" | "template" | "code_repository" | "free_guide" | "mini_course" | "tool" | string;
+  landing_page_url: string;
+  cta_copy: string;
+  status: "ACTIVE" | "PAUSED" | "ARCHIVED" | string;
+  target_pillar: string;
+  estimated_value_usd: number;
+  total_downloads: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+  conversions_count: number;
+  total_clicks: number;
+  total_signups: number;
+  total_customers: number;
+  total_revenue_usd: number;
+  conversion_rate_pct: number;
+  estimated_asset_value_usd: number;
+}
+
+export interface AudienceConversion {
+  id: string;
+  lead_magnet_id?: string | null;
+  lead_magnet_title?: string | null;
+  content_item_id?: string | null;
+  content_item_title?: string | null;
+  platform: string;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  conversion_timestamp?: string | null;
+  clicks: number;
+  signups: number;
+  customers: number;
+  revenue_usd: number;
+  notes?: string | null;
+  source: string;
+  conversion_rate_pct: number;
+  created_at?: string | null;
+}
+
+export interface UTMBuilderResponse {
+  tracking_url: string;
+  utm_source: string;
+  utm_medium: string;
+  utm_campaign: string;
+  utm_content?: string | null;
+  formatted_markdown_link: string;
+  copy_paste_cta: string;
+}
+
+export interface AudienceSummary {
+  total_lead_magnets: number;
+  active_magnets: number;
+  total_clicks: number;
+  total_signups: number;
+  total_customers: number;
+  total_revenue_usd: number;
+  overall_conversion_rate_pct: number;
+  estimated_total_list_value_usd: number;
+  by_magnet_type: Record<string, number>;
+  by_platform: Record<string, {
+    clicks: number;
+    signups: number;
+    customers: number;
+    revenue_usd: number;
+    conversion_rate_pct: number;
+  }>;
+  top_performing_magnets: Array<{
+    id: string;
+    title: string;
+    slug: string;
+    magnet_type: string;
+    clicks: number;
+    signups: number;
+    conversion_rate_pct: number;
+    estimated_asset_value_usd: number;
+  }>;
+}
+
+export interface AudienceExplainResponse {
+  result_id: string;
+  summary: string;
+  factors: Array<{ factor: string; weight: number; description: string }>;
+  economics_breakdown: Record<string, any>;
+}
+
+export async function getAudienceSummary(): Promise<AudienceSummary> {
+  return await request<AudienceSummary>("/api/v1/audience/summary");
+}
+
+export async function listLeadMagnets(
+  status?: string,
+  magnetType?: string,
+  limit: number = 50,
+  offset: number = 0
+): Promise<LeadMagnet[]> {
+  const params = new URLSearchParams();
+  if (status) params.append("status", status);
+  if (magnetType) params.append("magnet_type", magnetType);
+  params.append("limit", limit.toString());
+  params.append("offset", offset.toString());
+  return await request<LeadMagnet[]>(`/api/v1/audience/magnets?${params.toString()}`);
+}
+
+export async function getLeadMagnet(magnetId: string): Promise<LeadMagnet> {
+  return await request<LeadMagnet>(`/api/v1/audience/magnets/${magnetId}`);
+}
+
+export async function createLeadMagnet(payload: {
+  title: string;
+  slug: string;
+  description: string;
+  magnet_type?: string;
+  landing_page_url: string;
+  cta_copy: string;
+  status?: string;
+  target_pillar?: string;
+  estimated_value_usd?: number;
+}): Promise<LeadMagnet> {
+  return await request<LeadMagnet>("/api/v1/audience/magnets", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateLeadMagnet(
+  magnetId: string,
+  payload: Partial<LeadMagnet>
+): Promise<LeadMagnet> {
+  return await request<LeadMagnet>(`/api/v1/audience/magnets/${magnetId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteLeadMagnet(magnetId: string): Promise<void> {
+  await request<void>(`/api/v1/audience/magnets/${magnetId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function listAudienceConversions(
+  leadMagnetId?: string,
+  platform?: string,
+  contentItemId?: string,
+  limit: number = 50,
+  offset: number = 0
+): Promise<AudienceConversion[]> {
+  const params = new URLSearchParams();
+  if (leadMagnetId) params.append("lead_magnet_id", leadMagnetId);
+  if (platform) params.append("platform", platform);
+  if (contentItemId) params.append("content_item_id", contentItemId);
+  params.append("limit", limit.toString());
+  params.append("offset", offset.toString());
+  return await request<AudienceConversion[]>(`/api/v1/audience/conversions?${params.toString()}`);
+}
+
+export async function recordAudienceConversion(payload: {
+  lead_magnet_id?: string;
+  content_item_id?: string;
+  platform: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  clicks?: number;
+  signups?: number;
+  customers?: number;
+  revenue_usd?: number;
+  notes?: string;
+  source?: string;
+}): Promise<AudienceConversion> {
+  return await request<AudienceConversion>("/api/v1/audience/conversions", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function buildUTM(payload: {
+  base_url: string;
+  platform: string;
+  lead_magnet_slug?: string;
+  content_slug?: string;
+  campaign_name?: string;
+  custom_medium?: string;
+}): Promise<UTMBuilderResponse> {
+  return await request<UTMBuilderResponse>("/api/v1/audience/build-utm", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function explainAudienceEconomics(): Promise<AudienceExplainResponse> {
+  return await request<AudienceExplainResponse>("/api/v1/audience/explain");
+}
+
 
 
 

@@ -55,6 +55,7 @@ from app.models.media import (
 from app.models.quality_gate import QualityGateAudit
 from app.models.analytics import PublicationMetricsSnapshot
 from app.models.feedback import FeedbackLesson
+from app.models.audience import LeadMagnet, AudienceConversion
 
 __all__ = [
     "Base",
@@ -111,6 +112,8 @@ __all__ = [
     "QualityGateAudit",
     "PublicationMetricsSnapshot",
     "FeedbackLesson",
+    "LeadMagnet",
+    "AudienceConversion",
 ]
 
 

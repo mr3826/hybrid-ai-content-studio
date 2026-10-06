@@ -24,6 +24,7 @@ from app.api.v1.media import router as media_router
 from app.api.v1.quality_gate import router as quality_gate_router
 from app.api.v1.analytics import router as analytics_router
 from app.api.v1.feedback import router as feedback_router
+from app.api.v1.audience import router as audience_router
 
 api_v1_router = APIRouter()
 api_v1_router.include_router(health_router)
@@ -51,6 +52,7 @@ api_v1_router.include_router(media_router)
 api_v1_router.include_router(quality_gate_router)
 api_v1_router.include_router(analytics_router)
 api_v1_router.include_router(feedback_router)
+api_v1_router.include_router(audience_router)
 
 
 

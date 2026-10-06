@@ -20,6 +20,7 @@ from app.engines.media.engine import MediaEngine
 from app.engines.quality_gate.engine import QualityGateEngine
 from app.engines.analytics.engine import AnalyticsEngine
 from app.engines.feedback.engine import FeedbackEngine
+from app.engines.audience.engine import AudienceEngine
 
 CATALOG_DEFINITIONS = [
 
@@ -173,6 +174,16 @@ CATALOG_DEFINITIONS = [
         "dependencies": ["analytics", "brand"],
         "triggers": ["manual"],
     },
+    {
+        "id": "audience",
+        "name": "Owned Audience Tracking Engine",
+        "version": "1.0.0",
+        "description": "Converts rented social impressions into durable, owned audience assets (email subscribers, lead magnets, customer pipelines), computes subscriber economics (LTV, list value, conversion rates), generates traceable UTM campaigns, and attributes conversions across platforms.",
+        "inputs": ["lead_magnets", "audience_conversions", "content_items"],
+        "outputs": ["lead_magnet_analytics", "audience_summary", "utm_tracking_links", "platform_attribution"],
+        "dependencies": ["analytics", "brand"],
+        "triggers": ["manual"],
+    },
 ]
 
 
@@ -238,9 +249,12 @@ def register_all_catalog_engines() -> None:
     feedback_engine = FeedbackEngine()
     engine_registry.register(feedback_engine, replace=True)
 
+    audience_engine = AudienceEngine()
+    engine_registry.register(audience_engine, replace=True)
+
     # Register remaining catalog engines as placeholders if not already registered
     for d in CATALOG_DEFINITIONS:
-        if d["id"] in ("niche_guard", "brand", "rss", "trends", "opportunity", "research", "evidence", "ai", "originality", "content_family", "content", "export", "asset_rights", "scene_studio", "media", "quality_gate", "analytics", "feedback"):
+        if d["id"] in ("niche_guard", "brand", "rss", "trends", "opportunity", "research", "evidence", "ai", "originality", "content_family", "content", "export", "asset_rights", "scene_studio", "media", "quality_gate", "analytics", "feedback", "audience"):
             continue
         if not engine_registry.get(d["id"]):
             manifest = EngineManifest(**d)
