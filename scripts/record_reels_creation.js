@@ -125,7 +125,7 @@ async function smoothScroll(page, distance, delay = 800) {
 
   // Step 1: Script Studio for the Reel
   console.log('[2/7] Opening Script Studio for the Reel item...');
-  await page.goto(`http://localhost:3000/script-studio/${itemId}`, { waitUntil: 'networkidle' });
+  await page.goto(`http://localhost:3000/script-studio/${itemId}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await injectCursorFollower(page);
   await updateHud(
     page,
@@ -145,7 +145,7 @@ async function smoothScroll(page, distance, delay = 800) {
 
   // Step 2: Scene Studio
   console.log('[3/7] Navigating to Scene Studio...');
-  await page.goto('http://localhost:3000/scene-studio', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:3000/scene-studio', { waitUntil: 'domcontentloaded', timeout: 60000 });
   await injectCursorFollower(page);
   await updateHud(
     page,
@@ -161,7 +161,7 @@ async function smoothScroll(page, distance, delay = 800) {
 
   // Step 3: Media Studio
   console.log('[4/7] Navigating to Media Studio...');
-  await page.goto('http://localhost:3000/media-studio', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:3000/media-studio', { waitUntil: 'domcontentloaded', timeout: 60000 });
   await injectCursorFollower(page);
   await updateHud(
     page,
@@ -172,24 +172,26 @@ async function smoothScroll(page, distance, delay = 800) {
   );
   await sleep(3500);
 
-  // Select item in dropdown if available
+  // Select item in dropdown and preview video
   try {
     const select = await page.$('select');
     if (select) {
       await select.selectOption(itemId);
-      await sleep(2000);
+      await sleep(2500);
     }
+    await smoothScroll(page, 550, 1500);
+    await page.evaluate(() => {
+      const v = document.querySelector('video');
+      if (v) v.play().catch(() => {});
+    });
+    await sleep(4000);
   } catch (e) {
-    console.log('Select note:', e.message);
+    console.log('Video note:', e.message);
   }
-
-  await smoothScroll(page, 400, 1500);
-  await sleep(2000);
-  await smoothScroll(page, -400, 1200);
 
   // Step 4: Quality Gate
   console.log('[5/7] Navigating to Quality Gate...');
-  await page.goto('http://localhost:3000/quality-gate', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:3000/quality-gate', { waitUntil: 'domcontentloaded', timeout: 60000 });
   await injectCursorFollower(page);
   await updateHud(
     page,
@@ -203,7 +205,7 @@ async function smoothScroll(page, distance, delay = 800) {
 
   // Step 5: Publishing Assistant
   console.log('[6/7] Navigating to Publishing Assistant...');
-  await page.goto(`http://localhost:3000/publishing/${itemId}`, { waitUntil: 'networkidle' });
+  await page.goto(`http://localhost:3000/publishing/${itemId}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await injectCursorFollower(page);
   await updateHud(
     page,

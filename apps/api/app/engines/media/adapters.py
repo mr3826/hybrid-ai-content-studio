@@ -308,27 +308,53 @@ class FFmpegMediaAdapter:
         # If FFmpeg is installed, run composition
         if self.has_ffmpeg() and Path(master_audio_path).exists():
             try:
-                # Find or create a primary visual asset for video stream
-                first_visual = None
-                for s in scenes:
-                    if s.visual_source and Path(s.visual_source).exists():
-                        first_visual = s.visual_source
-                        break
-
-                # If first visual is SVG, or none exists, create a solid color / test background video
-                cmd = [
-                    self.ffmpeg_path,
-                    "-y",
-                    "-f", "lavfi",
-                    "-i", f"color=c=0x0F172A:s={width}x{height}:r={config.fps}:d={total_duration_sec}",
-                    "-i", str(Path(master_audio_path).resolve()),
-                    "-c:v", "libx264",
-                    "-pix_fmt", "yuv420p",
-                    "-c:a", "aac",
-                    "-b:a", "192k",
-                    "-shortest",
-                    str(out_path.resolve()),
+                # Assemble available visual scene cards into video slideshow
+                concat_list = self.output_dir / f"concat_{package_id[:8]}.txt"
+                available_cards = [
+                    Path(f"data/assets/generated/scene_card_{idx+1}.png") for idx in range(len(scenes))
                 ]
+                valid_cards = [c for c in available_cards if c.exists()]
+
+                if valid_cards:
+                    with open(concat_list, "w", encoding="utf-8") as f:
+                        for idx, s in enumerate(scenes):
+                            card = available_cards[idx] if idx < len(available_cards) and available_cards[idx].exists() else valid_cards[0]
+                            safe_p = str(card.resolve()).replace("\\", "/")
+                            f.write(f"file '{safe_p}'\nduration {s.timing_estimate}\n")
+                        last_safe = str(valid_cards[-1].resolve()).replace("\\", "/")
+                        f.write(f"file '{last_safe}'\n")
+
+                    cmd = [
+                        self.ffmpeg_path,
+                        "-y",
+                        "-f", "concat",
+                        "-safe", "0",
+                        "-i", str(concat_list.resolve()),
+                        "-i", str(Path(master_audio_path).resolve()),
+                        "-c:v", "libx264",
+                        "-pix_fmt", "yuv420p",
+                        "-r", str(config.fps),
+                        "-c:a", "aac",
+                        "-b:a", "192k",
+                        "-shortest",
+                        str(out_path.resolve()),
+                    ]
+                else:
+                    # High-contrast stylized visual canvas if no pre-rendered cards exist
+                    cmd = [
+                        self.ffmpeg_path,
+                        "-y",
+                        "-f", "lavfi",
+                        "-i", f"color=c=0x0F172A:s={width}x{height}:r={config.fps}:d={total_duration_sec}",
+                        "-i", str(Path(master_audio_path).resolve()),
+                        "-vf", f"drawbox=x=80:y=200:w={width-160}:h={height-400}:color=0x1E293B@0.8:t=fill,drawbox=x=80:y=200:w={width-160}:h=16:color=0x6366F1@1.0:t=fill",
+                        "-c:v", "libx264",
+                        "-pix_fmt", "yuv420p",
+                        "-c:a", "aac",
+                        "-b:a", "192k",
+                        "-shortest",
+                        str(out_path.resolve()),
+                    ]
                 proc = subprocess.run(
                     cmd,
                     stdout=subprocess.PIPE,

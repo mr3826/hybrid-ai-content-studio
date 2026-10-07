@@ -50,6 +50,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
+# Mount local assets for audio/video streaming in the studio UI
+Path("data/assets").mkdir(parents=True, exist_ok=True)
+app.mount("/assets", StaticFiles(directory="data/assets"), name="assets")
+
 # Root-level health endpoint and V1 routers
 app.include_router(health_router)
 app.include_router(api_v1_router, prefix="/api/v1")

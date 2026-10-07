@@ -710,20 +710,40 @@ export default function MediaStudioPage() {
 
               {/* Rendered Video Card & Quality Report */}
               {renderedVideoPath && (
-                <div className="space-y-3 pt-3 border-t border-slate-800/80">
-                  <div className="p-3.5 rounded-lg bg-emerald-950/20 border border-emerald-500/30 text-xs space-y-2">
+                <div className="space-y-4 pt-4 border-t border-slate-800/80">
+                  <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-xs space-y-4">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-emerald-400 flex items-center gap-1.5">
+                      <span className="font-semibold text-emerald-400 flex items-center gap-1.5 text-sm">
                         <CheckCircle2 className="w-4 h-4" />
-                        {t("mediaStudioPage.renderSection.videoPreview", "Video Render Complete")}
+                        {t("mediaStudioPage.renderSection.videoPreview", "Master Reel Video Ready")}
                       </span>
-                      <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                        {renderResolution === "vertical_9_16" ? "9:16" : "16:9"}
+                      <span className="text-[10px] uppercase font-mono px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                        {renderResolution === "vertical_9_16" ? "9:16 Vertical" : "16:9 Landscape"}
                       </span>
                     </div>
 
-                    <div className="font-mono text-[11px] text-slate-400 truncate bg-slate-950/80 p-2 rounded border border-slate-800/80">
-                      {renderedVideoPath}
+                    {/* Inline Video Player */}
+                    <div className="relative mx-auto max-w-[280px] rounded-2xl overflow-hidden border-2 border-emerald-500/40 shadow-2xl bg-black aspect-[9/16]">
+                      <video
+                        src={`http://localhost:8400/assets/video/${renderedVideoPath.split(/[/\\]/).pop()}`}
+                        controls
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-2">
+                      <div className="font-mono text-[11px] text-slate-400 truncate bg-slate-950/80 p-2 rounded-lg border border-slate-800/80 flex-1">
+                        {renderedVideoPath}
+                      </div>
+                      <a
+                        href={`http://localhost:8400/assets/video/${renderedVideoPath.split(/[/\\]/).pop()}`}
+                        download
+                        className="py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-1.5 transition-colors shrink-0"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Download MP4
+                      </a>
                     </div>
 
                     {qualityReport && (
