@@ -236,7 +236,7 @@ export default function SourcesPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-3 overflow-x-auto no-scrollbar whitespace-nowrap">
         <button
           onClick={() => setActiveTab("candidates")}
           className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-colors ${
@@ -492,8 +492,8 @@ export default function SourcesPage() {
             </button>
           </div>
 
-          <div className="rounded-xl border border-slate-800 overflow-hidden bg-slate-900/40">
-            <table className="w-full text-left text-xs">
+          <div className="rounded-xl border border-slate-800 overflow-x-auto bg-slate-900/40">
+            <table className="w-full min-w-[640px] text-left text-xs">
               <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 font-medium">
                 <tr>
                   <th className="p-3">Source Name</th>

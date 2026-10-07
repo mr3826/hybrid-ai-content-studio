@@ -516,7 +516,7 @@ export default function AIStudioPage() {
 
           {/* Logs Table */}
           <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/60">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[700px] text-left text-xs">
               <thead className="border-b border-slate-800 bg-slate-800/40 text-slate-400">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Timestamp</th>

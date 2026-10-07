@@ -190,7 +190,7 @@ export default function EnginesPage() {
       </div>
 
       {/* Top Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
           <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">
             {isBangla ? "মোট ইঞ্জিন" : "Total Engines"}

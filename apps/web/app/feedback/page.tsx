@@ -324,7 +324,7 @@ export default function FeedbackPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-800 gap-2">
+      <div className="flex border-b border-slate-800 gap-2 overflow-x-auto no-scrollbar whitespace-nowrap">
         {["all", "PENDING", "APPROVED", "APPLIED", "REJECTED"].map((tab) => (
           <button
             key={tab}

@@ -28,26 +28,33 @@ export function HealthBadge() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 px-3 py-1 text-xs rounded-full bg-slate-800 text-slate-400 border border-slate-700">
-        <span className="w-2 h-2 rounded-full bg-slate-500 animate-pulse"></span>
-        {t("header.connecting", "Connecting to API...")}
+      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 text-xs rounded-full bg-slate-800 text-slate-400 border border-slate-700 shrink-0">
+        <span className="w-2 h-2 rounded-full bg-slate-500 animate-pulse shrink-0"></span>
+        <span className="hidden sm:inline">{t("header.connecting", "Connecting to API...")}</span>
+        <span className="sm:hidden text-[11px]">{t("header.connectingShort", "Connecting...")}</span>
       </div>
     );
   }
 
   if (!health || health.status !== "healthy") {
     return (
-      <div className="flex items-center gap-2 px-3 py-1 text-xs rounded-full bg-red-950/60 text-red-400 border border-red-800/60">
-        <span className="w-2 h-2 rounded-full bg-red-500"></span>
-        {t("header.apiDisconnected", "API Disconnected (Port 8400)")}
+      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 text-xs rounded-full bg-red-950/60 text-red-400 border border-red-800/60 shrink-0">
+        <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+        <span className="hidden sm:inline">{t("header.apiDisconnected", "API Disconnected (Port 8400)")}</span>
+        <span className="sm:hidden text-[11px]">{t("header.apiOfflineShort", "Offline")}</span>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1 text-xs rounded-full bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 font-medium">
-      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-      {t("header.apiHealthy", "API Healthy")} &bull; {t("header.dbConnected", "DB Connected")} &bull; v{health.version}
+    <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 text-xs rounded-full bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 font-medium shrink-0">
+      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+      <span className="hidden sm:inline">
+        {t("header.apiHealthy", "API Healthy")} &bull; {t("header.dbConnected", "DB Connected")} &bull; v{health.version}
+      </span>
+      <span className="sm:hidden text-[11px]">
+        {t("header.apiHealthyShort", "Healthy")}
+      </span>
     </div>
   );
 }

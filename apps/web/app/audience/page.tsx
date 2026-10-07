@@ -386,7 +386,7 @@ export default function AudiencePage() {
       )}
 
       {/* Tab Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto no-scrollbar whitespace-nowrap">
         <button
           onClick={() => setActiveTab("magnets")}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -806,7 +806,7 @@ export default function AudiencePage() {
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
-              <table className="w-full text-left text-xs text-slate-300">
+              <table className="w-full min-w-[750px] text-left text-xs text-slate-300">
                 <thead className="bg-slate-950/60 text-slate-400 font-mono border-b border-slate-800">
                   <tr>
                     <th className="p-3">Platform</th>

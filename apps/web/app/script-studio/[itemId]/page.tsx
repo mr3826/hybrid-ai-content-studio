@@ -260,27 +260,27 @@ export default function ScriptStudioPage() {
   }
 
   return (
-    <div className="h-full flex flex-col gap-4 overflow-hidden">
+    <div className="min-h-full flex flex-col gap-4">
       {/* Header */}
-      <div className="shrink-0 flex items-center justify-between">
+      <div className="shrink-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.back()}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-purple-400" />
-              <h1 className="text-lg font-bold text-white">Script Studio</h1>
+              <BookOpen className="w-5 h-5 text-purple-400 shrink-0" />
+              <h1 className="text-base sm:text-lg font-bold text-white">Script Studio</h1>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
               {item.working_title} · <span className="text-purple-300">{item.format?.replace(/_/g, " ")}</span> · {item.platform_target}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {script && (
             <>
               <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
@@ -351,12 +351,12 @@ export default function ScriptStudioPage() {
         </div>
       )}
 
-      {/* Script Editor — Three Column Layout */}
+      {/* Script Editor — Responsive Layout */}
       {script && (
-        <div className="flex-1 grid grid-cols-12 gap-4 overflow-hidden min-h-0">
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 min-h-0">
 
           {/* LEFT COLUMN: Evidence Reference Drawer */}
-          <div className="col-span-3 overflow-y-auto rounded-xl bg-slate-900/60 border border-slate-800 p-4 space-y-4">
+          <div className="col-span-1 lg:col-span-3 order-3 lg:order-1 overflow-y-auto rounded-xl bg-slate-900/60 border border-slate-800 p-4 space-y-4">
             <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
               Evidence Context
@@ -418,7 +418,7 @@ export default function ScriptStudioPage() {
           </div>
 
           {/* CENTER COLUMN: Section Editor */}
-          <div className="col-span-6 overflow-y-auto space-y-3">
+          <div className="col-span-1 lg:col-span-6 order-1 lg:order-2 overflow-y-auto space-y-3">
             {script.sections
               .sort((a, b) => a.order_index - b.order_index)
               .map((section) => {
@@ -544,7 +544,7 @@ export default function ScriptStudioPage() {
           </div>
 
           {/* RIGHT COLUMN: Quality + Revisions + Approve */}
-          <div className="col-span-3 overflow-y-auto space-y-4">
+          <div className="col-span-1 lg:col-span-3 order-2 lg:order-3 overflow-y-auto space-y-4">
 
             {/* Quality Dimensions */}
             <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-4 space-y-3">

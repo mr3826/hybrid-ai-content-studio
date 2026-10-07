@@ -349,7 +349,7 @@ export default function ContentFamilyDetailPage() {
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={handleOpenSuggest}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600/30 transition-colors"
@@ -449,7 +449,7 @@ export default function ContentFamilyDetailPage() {
       </div>
 
       {/* Family Economics Summary Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
           <p className="text-[11px] text-slate-400 font-medium">Shared Family Cost</p>
           <p className="text-lg font-bold text-white mt-0.5">${econ.shared_family_cost.toFixed(2)}</p>

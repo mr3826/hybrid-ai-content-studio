@@ -350,7 +350,7 @@ export default function AssetRightsPage() {
       ) : (
         <div className="bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[750px] text-left text-xs">
               <thead className="bg-slate-950/80 text-slate-400 border-b border-slate-800 font-medium">
                 <tr>
                   <th className="py-3 px-4">{t("assetRightsPage.tableTitle", "Asset Title")}</th>

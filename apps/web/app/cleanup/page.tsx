@@ -376,7 +376,7 @@ export default function CleanupPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-800 gap-6 mt-8">
+      <div className="flex border-b border-slate-800 gap-4 sm:gap-6 mt-8 overflow-x-auto no-scrollbar whitespace-nowrap">
         <button
           onClick={() => setActiveTab("inspection")}
           className={`pb-3 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${

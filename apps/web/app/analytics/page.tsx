@@ -407,7 +407,7 @@ export default function AnalyticsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[650px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 text-xs font-medium uppercase tracking-wider">
                   <th className="pb-3 px-3">{t("analyticsPage.hookTable.hook", "Script Opening Hook")}</th>
@@ -463,7 +463,7 @@ export default function AnalyticsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[750px] text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 text-xs font-medium uppercase tracking-wider">
                   <th className="pb-3 px-3">Date</th>

@@ -52,50 +52,49 @@ const NAV_CONFIG = [
   { href: "/settings", key: "nav.settings", fallback: "Settings", icon: SettingsIcon },
 ];
 
-export function Navigation() {
+export function Navigation({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const { t } = useLanguage();
 
   return (
-    <aside className="w-64 border-r border-slate-800 bg-slate-900/70 p-4 flex flex-col justify-between shrink-0">
-      <div>
-        <div className="flex items-center gap-2 px-3 py-3 mb-6">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white shadow-md shadow-indigo-500/20">
-            EC
-          </div>
-          <div>
-            <h1 className="text-sm font-semibold tracking-tight text-white leading-tight">
-              {t("nav.studioTitle", "Content Studio")}
-            </h1>
-            <p className="text-[11px] text-slate-400">
-              {t("nav.studioSubtitle", "Local-First Studio")}
-            </p>
-          </div>
+    <div className="flex flex-col h-full justify-between overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 mb-3 shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white shadow-md shadow-indigo-500/20 shrink-0">
+          EC
         </div>
-
-        <nav className="space-y-1">
-          {NAV_CONFIG.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-semibold"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
-                }`}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="truncate">{t(item.key, item.fallback)}</span>
-              </Link>
-            );
-          })}
-        </nav>
+        <div className="min-w-0">
+          <h1 className="text-sm font-semibold tracking-tight text-white leading-tight truncate">
+            {t("nav.studioTitle", "Content Studio")}
+          </h1>
+          <p className="text-[11px] text-slate-400 truncate">
+            {t("nav.studioSubtitle", "Local-First Studio")}
+          </p>
+        </div>
       </div>
 
-      <div className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80">
+      <nav className="flex-1 overflow-y-auto space-y-1 min-h-0 pr-1 custom-scrollbar">
+        {NAV_CONFIG.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? "bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 font-semibold"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+              }`}
+            >
+              <Icon className="w-4 h-4 shrink-0" />
+              <span className="truncate">{t(item.key, item.fallback)}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="mt-3 p-3 bg-slate-950/60 rounded-lg border border-slate-800/80 shrink-0">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 mb-1">
           <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           <span>{t("nav.invariantsTitle", "Studio Invariants")}</span>
@@ -104,7 +103,7 @@ export function Navigation() {
           {t("nav.invariantsDesc", "1 Active Niche • 1 Brand DNA • Human-in-the-Loop • No n8n")}
         </p>
       </div>
-    </aside>
+    </div>
   );
 }
 

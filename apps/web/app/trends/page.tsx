@@ -288,7 +288,7 @@ export default function TrendsPage() {
       )}
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">

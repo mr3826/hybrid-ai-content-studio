@@ -197,11 +197,11 @@ export default function EngineTesterModal({
           {engineId === "niche_guard" && (
             <div className="space-y-5">
               {/* Preset buttons */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
                 <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                   Test Presets:
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => loadNichePreset("in_niche")}
@@ -291,7 +291,7 @@ export default function EngineTesterModal({
               {ngVerdict && (
                 <div className="mt-4 pt-4 border-t border-slate-800 space-y-4">
                   <div
-                    className={`p-4 rounded-xl border flex items-center justify-between ${
+                    className={`p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
                       ngVerdict.passed
                         ? "bg-emerald-950/30 border-emerald-800/60 text-emerald-300"
                         : "bg-red-950/30 border-red-800/60 text-red-300"
@@ -457,11 +457,11 @@ export default function EngineTesterModal({
           {engineId === "brand" && (
             <div className="space-y-5">
               {/* Preset buttons */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 gap-2">
                 <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                   Test Presets:
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => loadBrandPreset("on_brand")}
@@ -561,7 +561,7 @@ export default function EngineTesterModal({
               {brandVerdict && (
                 <div className="mt-4 pt-4 border-t border-slate-800 space-y-4">
                   <div
-                    className={`p-4 rounded-xl border flex items-center justify-between ${
+                    className={`p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
                       brandVerdict.on_brand
                         ? "bg-emerald-950/30 border-emerald-800/60 text-emerald-300"
                         : "bg-red-950/30 border-red-800/60 text-red-300"
