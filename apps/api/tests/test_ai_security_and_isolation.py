@@ -84,6 +84,95 @@ async def test_gemini_adapter_error_sanitization():
 
 
 @pytest.mark.asyncio
+async def test_gemini_structured_generation_sends_schema_and_bounds_2_5_thinking():
+    adapter = GeminiAdapter(api_key="test-key", model="gemini-2.5-flash")
+    captured_payload = None
+
+    async def mock_post(url, headers=None, json=None, **kwargs):
+        nonlocal captured_payload
+        captured_payload = json
+        return httpx.Response(
+            status_code=200,
+            json={
+                "candidates": [
+                    {"finishReason": "STOP", "content": {"parts": [{"text": '{"ok":true}'}]}}
+                ],
+                "usageMetadata": {
+                    "promptTokenCount": 10,
+                    "candidatesTokenCount": 3,
+                    "thoughtsTokenCount": 0,
+                    "totalTokenCount": 13,
+                },
+            },
+            request=httpx.Request("POST", str(url)),
+        )
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "sections": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {"ok": {"type": "boolean"}},
+                    "required": ["ok"],
+                    "additionalProperties": False,
+                },
+                "minItems": 1,
+                "maxItems": 1,
+            }
+        },
+        "required": ["sections"],
+        "additionalProperties": False,
+    }
+    with patch("httpx.AsyncClient.post", side_effect=mock_post):
+        response = await adapter.generate_structured(
+            StructuredGenerationRequest(prompt="Return the supplied test value.", response_schema=schema)
+        )
+
+    assert response.success is True
+    assert response.structured_data == {"ok": True}
+    assert captured_payload is not None
+    generation_config = captured_payload["generationConfig"]
+    assert generation_config["responseMimeType"] == "application/json"
+    assert generation_config["responseSchema"]["type"] == "OBJECT"
+    assert generation_config["responseSchema"]["properties"]["sections"]["items"]["type"] == "OBJECT"
+    assert "minItems" not in generation_config["responseSchema"]["properties"]["sections"]
+    assert "maxItems" not in generation_config["responseSchema"]["properties"]["sections"]
+    assert "additionalProperties" not in generation_config["responseSchema"]
+    assert "additionalProperties" not in generation_config["responseSchema"]["properties"]["sections"]["items"]
+    assert generation_config["thinkingConfig"] == {"thinkingBudget": 0}
+
+
+@pytest.mark.asyncio
+async def test_gemini_structured_generation_rejects_truncated_output():
+    adapter = GeminiAdapter(api_key="test-key", model="gemini-2.5-flash")
+
+    async def mock_post(url, headers=None, json=None, **kwargs):
+        return httpx.Response(
+            status_code=200,
+            json={
+                "candidates": [
+                    {"finishReason": "MAX_TOKENS", "content": {"parts": [{"text": '{"sections": ['}]}}
+                ]
+            },
+            request=httpx.Request("POST", str(url)),
+        )
+
+    with patch("httpx.AsyncClient.post", side_effect=mock_post):
+        response = await adapter.generate_structured(
+            StructuredGenerationRequest(
+                prompt="Return a structured response.",
+                response_schema={"type": "object", "properties": {}, "required": []},
+            )
+        )
+
+    assert response.success is False
+    assert response.text == ""
+    assert "max output tokens" in response.error_message.casefold()
+
+
+@pytest.mark.asyncio
 async def test_qwen_adapter_error_sanitization():
     """Verify Qwen adapter sanitizes credentials in error messages."""
     fake_key = "qwen-secret-token-abcdef456"

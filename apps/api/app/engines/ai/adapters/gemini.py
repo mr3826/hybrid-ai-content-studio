@@ -1,5 +1,6 @@
 import json
 import time
+from copy import deepcopy
 from typing import Any, Dict, Optional
 import httpx
 from app.engines.ai.adapters.base import BaseAIAdapter
@@ -45,6 +46,64 @@ class GeminiAdapter(BaseAIAdapter):
         if self.api_key:
             sanitized = sanitized.replace(self.api_key, "[REDACTED]")
         return sanitized
+
+    @staticmethod
+    def _gemini_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert the provider-neutral JSON Schema contract to Gemini Schema enums."""
+        definitions = schema.get("$defs", {}) if isinstance(schema, dict) else {}
+        type_names = {
+            "array": "ARRAY",
+            "boolean": "BOOLEAN",
+            "integer": "INTEGER",
+            "null": "NULL",
+            "number": "NUMBER",
+            "object": "OBJECT",
+            "string": "STRING",
+        }
+        supported_keys = {
+            "description",
+            "enum",
+            "items",
+            "maximum",
+            "minimum",
+            "properties",
+            "required",
+            "type",
+        }
+
+        def convert(node: Any, active_refs: frozenset[str] = frozenset()) -> Any:
+            if isinstance(node, list):
+                return [convert(item, active_refs) for item in node]
+            if not isinstance(node, dict):
+                return node
+            ref = node.get("$ref")
+            if isinstance(ref, str) and ref.startswith("#/$defs/"):
+                if ref in active_refs:
+                    return {"type": "OBJECT"}
+                definition = definitions.get(ref.removeprefix("#/$defs/"))
+                if isinstance(definition, dict):
+                    merged = deepcopy(definition)
+                    merged.update({key: value for key, value in node.items() if key != "$ref"})
+                    return convert(merged, active_refs | {ref})
+            result: Dict[str, Any] = {}
+            for key, value in node.items():
+                if key not in supported_keys:
+                    continue
+                if key == "type":
+                    if isinstance(value, str):
+                        result[key] = type_names.get(value, value.upper())
+                    elif isinstance(value, list):
+                        result[key] = [type_names.get(item, item.upper()) for item in value]
+                elif key == "properties" and isinstance(value, dict):
+                    result[key] = {name: convert(child, active_refs) for name, child in value.items()}
+                elif key == "items" and isinstance(value, dict):
+                    result[key] = convert(value, active_refs)
+                elif key in supported_keys:
+                    result[key] = value
+            return result
+
+        converted = convert(schema)
+        return converted if isinstance(converted, dict) else {}
 
     async def generate_text(self, request: TextGenerationRequest) -> AIResponse:
         start_time = time.perf_counter()
@@ -217,9 +276,8 @@ class GeminiAdapter(BaseAIAdapter):
 
         schema_prompt = (
             f"{request.prompt}\n\n"
-            f"You MUST return valid JSON adhering strictly to this JSON Schema:\n"
-            f"{json.dumps(request.response_schema, indent=2)}\n"
-            f"Output ONLY the JSON object. Do not enclose in markdown ticks if possible."
+            "Return only one JSON object that conforms exactly to this schema, with no extra keys:\n"
+            f"{json.dumps(request.response_schema, ensure_ascii=False, separators=(',', ':'))}"
         )
 
         payload: Dict[str, Any] = {
@@ -228,8 +286,14 @@ class GeminiAdapter(BaseAIAdapter):
                 "temperature": request.temperature,
                 "maxOutputTokens": request.max_tokens,
                 "responseMimeType": "application/json",
+                "responseSchema": self._gemini_schema(request.response_schema),
             },
         }
+        # Gemini 2.5 uses the output-token ceiling for both reasoning and response
+        # text. Disable hidden reasoning for this constrained JSON task so short
+        # scripts do not spend their response budget before emitting JSON.
+        if "gemini-2.5" in self.default_model.casefold():
+            payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 0}
         if request.system_prompt:
             payload["systemInstruction"] = {"parts": [{"text": request.system_prompt}]}
 
@@ -266,9 +330,29 @@ class GeminiAdapter(BaseAIAdapter):
                     latency_ms=round(latency_ms, 2),
                 )
 
+            candidate = candidates[0]
             raw_text = "".join(
-                part.get("text", "") for part in candidates[0].get("content", {}).get("parts", [])
+                part.get("text", "") for part in candidate.get("content", {}).get("parts", [])
             )
+            finish_reason = str(candidate.get("finishReason") or "").upper()
+            if finish_reason and finish_reason not in {"STOP", "FINISH_REASON_UNSPECIFIED"}:
+                if finish_reason == "MAX_TOKENS":
+                    finish_error = "Gemini reached max output tokens before completing structured JSON."
+                elif finish_reason == "SAFETY":
+                    finish_error = "Gemini structured output was blocked by its safety filters."
+                else:
+                    finish_error = f"Gemini structured output ended with finish reason {finish_reason}."
+                return AIResponse(
+                    text="",
+                    structured_data=None,
+                    provider=self.provider_id,
+                    model=self.default_model,
+                    task=request.task,
+                    prompt_version=request.prompt_version,
+                    success=False,
+                    error_message=finish_error,
+                    latency_ms=round(latency_ms, 2),
+                )
 
             # Strip markdown formatting if any
             clean_text = raw_text.strip()
@@ -298,6 +382,7 @@ class GeminiAdapter(BaseAIAdapter):
             usage = data.get("usageMetadata", {})
             prompt_tokens = usage.get("promptTokenCount", max(1, len(schema_prompt.split())))
             completion_tokens = usage.get("candidatesTokenCount", max(1, len(raw_text.split())))
+            completion_tokens += usage.get("thoughtsTokenCount", 0)
             total_tokens = usage.get("totalTokenCount", prompt_tokens + completion_tokens)
             cost = self.calculate_cost(prompt_tokens, completion_tokens)
 

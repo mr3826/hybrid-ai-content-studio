@@ -29,6 +29,7 @@ class ScriptSectionOutput(BaseModel):
     heading: str
     narration: str
     visual_cue: str = ""
+    evidence_category: str = "context"
     estimated_seconds: int = 0
     word_count: int = 0
     linked_claim_ids: List[str] = Field(default_factory=list)
@@ -58,6 +59,7 @@ class GenerateScriptRequest(BaseModel):
     hook_type: str = "bold_claim"
     platform_target: str = "youtube"
     target_duration_sec: int = 60
+    viewer_value: str = ""
     # Parent context
     family_title: str
     content_pillar: str = "Core"
@@ -90,12 +92,18 @@ class SectionRefineRequest(BaseModel):
     script_id: str
     section_id: str
     section_type: str
+    content_format: str = "short_vertical"
+    target_duration_sec: int = 0
     current_narration: str
     current_visual_cue: str = ""
+    current_linked_claim_ids: List[str] = Field(default_factory=list)
     refinement_type: RefinementType
     guidance: Optional[str] = None
     linked_claims: List[Dict[str, Any]] = Field(default_factory=list)
     brand_tone: List[str] = Field(default_factory=list)
+    voice_rules: List[str] = Field(default_factory=list)
+    banned_cliches: List[str] = Field(default_factory=list)
+    niche_blocked_topics: List[str] = Field(default_factory=list)
 
 
 class SectionRefineOutput(BaseModel):
@@ -105,6 +113,7 @@ class SectionRefineOutput(BaseModel):
     word_count: int
     estimated_seconds: int
     explanation: str
+    linked_claim_ids: List[str] = Field(default_factory=list)
 
 
 class ScriptApprovalInput(BaseModel):

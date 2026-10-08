@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.content_family import ContentFamily, ContentItem, ContentItemEvidenceSelection
-from app.models.evidence import Claim
+from app.models.evidence import Claim, ClaimEvidence
 from app.repositories.base import BaseRepository
 
 VALID_FAMILY_STATUSES = ["DRAFT", "READY_FOR_CONTENT", "ACTIVE", "COMPLETED", "ARCHIVED"]
@@ -419,14 +419,19 @@ class ContentItemRepository(BaseRepository[ContentItem]):
         await self.session.commit()
         return True
 
-    async def get_selected_claims(self, content_item_id: str) -> List[Claim]:
+    async def get_selected_claims(
+        self, content_item_id: str
+    ) -> List[ContentItemEvidenceSelection]:
+        """Return selected claim links with their claims and source provenance loaded."""
         query = (
-            select(Claim)
-            .join(
-                ContentItemEvidenceSelection,
-                ContentItemEvidenceSelection.claim_id == Claim.id,
-            )
+            select(ContentItemEvidenceSelection)
             .where(ContentItemEvidenceSelection.content_item_id == content_item_id)
+            .options(
+                selectinload(ContentItemEvidenceSelection.claim)
+                .selectinload(Claim.evidence_links)
+                .selectinload(ClaimEvidence.source)
+            )
+            .order_by(ContentItemEvidenceSelection.created_at)
         )
         result = await self.session.execute(query)
         return list(result.scalars().all())

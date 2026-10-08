@@ -4,10 +4,11 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.media import MediaPackage, MediaPackageStatus
+from script_test_utils import install_script_provider_fixture, prepare_script_inputs
 
 
 @pytest.mark.asyncio
-async def test_quality_gate_api_full_flow(client: AsyncClient):
+async def test_quality_gate_api_full_flow(client: AsyncClient, db_session: AsyncSession, monkeypatch):
     test_id = uuid.uuid4().hex[:6]
 
     # 1. Create content family
@@ -38,6 +39,8 @@ async def test_quality_gate_api_full_flow(client: AsyncClient):
     )
     assert item_res.status_code == 201
     item_id = item_res.json()["id"]
+    await prepare_script_inputs(db_session, item_id)
+    install_script_provider_fixture(monkeypatch)
 
     # 3. Generate script draft
     gen_res = await client.post(
@@ -114,6 +117,7 @@ async def test_quality_gate_blocks_failed_media_even_with_override(client: Async
         "original_value_connection": "A failed render cannot be approved.", "viewer_value": "Production safety.",
     })
     item_id = item_res.json()["id"]
+    await prepare_script_inputs(db_session, item_id)
     script_res = await client.post("/api/v1/scripts/generate", json={"content_item_id": item_id})
     script_id = script_res.json()["id"]
     db_session.add(MediaPackage(

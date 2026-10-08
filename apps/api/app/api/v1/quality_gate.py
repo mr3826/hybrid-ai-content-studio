@@ -63,7 +63,6 @@ async def _gather_and_evaluate_item(
         packet_stmt = (
             select(ResearchPacket)
             .where(ResearchPacket.id == family.research_packet_id)
-            .options(selectinload(ResearchPacket.sources), selectinload(ResearchPacket.claims))
         )
         packet_res = await db.execute(packet_stmt)
         packet = packet_res.scalar_one_or_none()

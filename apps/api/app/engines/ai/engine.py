@@ -1,9 +1,14 @@
+import asyncio
 import hashlib
+import json
+import math
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError, ValidationError as JSONSchemaValidationError
 
 from app.core.config import settings
 from app.engines.core.base import (
@@ -59,6 +64,7 @@ class AIProviderEngine(BaseEngine):
         )
 
         self.mock_adapter = MockAIAdapter(cost_rates=mock_rates)
+        self._budget_lock = asyncio.Lock()
 
     def validate_config(self) -> None:
         """Validate engine configuration or rules."""
@@ -108,7 +114,8 @@ class AIProviderEngine(BaseEngine):
     def _get_primary_adapter(self, preferred: Optional[str] = None) -> BaseAIAdapter:
         if settings.AI_MOCK_MODE or preferred == "mock":
             return self.mock_adapter
-        if preferred == "qwen":
+        provider = preferred or settings.AI_PRIMARY_PROVIDER or self.rules.get("primary_provider", "gemini")
+        if provider == "qwen":
             return self.qwen_adapter
         return self.gemini_adapter
 
@@ -119,7 +126,138 @@ class AIProviderEngine(BaseEngine):
             adapter.provider_id = "qwen-mock-fallback"
             adapter.default_model = "mock-qwen-fallback-model"
             return adapter
+        provider = settings.AI_FALLBACK_PROVIDER or self.rules.get("fallback_provider", "qwen")
+        if provider == "gemini":
+            return self.gemini_adapter
         return self.qwen_adapter
+
+    def estimate_max_cost(self, request: StructuredGenerationRequest) -> float:
+        """Estimate the maximum configured provider cost, including an eligible fallback."""
+        if settings.AI_MOCK_MODE or request.preferred_provider == "mock":
+            return 0.0
+
+        primary = self._get_primary_adapter(request.preferred_provider)
+        prompt = request.prompt + json.dumps(request.response_schema, separators=(",", ":"))
+        prompt_tokens = max(1, math.ceil(len(prompt) / 4))
+        cost = primary.calculate_cost(prompt_tokens, request.max_tokens)
+        fallback_enabled = (
+            request.allow_fallback
+            and settings.AI_FALLBACK_ENABLED
+            and self.rules.get("fallback_enabled", True)
+        )
+        fallback = self._get_fallback_adapter() if fallback_enabled else None
+        if fallback and fallback.provider_id != primary.provider_id:
+            cost += fallback.calculate_cost(prompt_tokens, request.max_tokens)
+        return round(cost, 6)
+
+    def _estimate_request_cost(self, request: Any, primary: BaseAIAdapter) -> float:
+        if settings.AI_MOCK_MODE or getattr(request, "preferred_provider", None) == "mock":
+            return 0.0
+        if isinstance(request, StructuredGenerationRequest):
+            prompt = request.prompt + json.dumps(request.response_schema, separators=(",", ":"))
+        elif isinstance(request, TextGenerationRequest):
+            prompt = request.prompt
+        else:
+            prompt = request.content + request.instruction + " ".join(request.criteria)
+        prompt_tokens = max(1, math.ceil(len(prompt) / 4))
+        max_tokens = getattr(request, "max_tokens", self.rules.get("max_tokens_default", 2048))
+        cost = primary.calculate_cost(prompt_tokens, max_tokens)
+        fallback_enabled = (
+            getattr(request, "allow_fallback", True)
+            and settings.AI_FALLBACK_ENABLED
+            and self.rules.get("fallback_enabled", True)
+        )
+        fallback = self._get_fallback_adapter() if fallback_enabled else None
+        if fallback and fallback.provider_id != primary.provider_id:
+            cost += fallback.calculate_cost(prompt_tokens, max_tokens)
+        return round(cost, 6)
+
+    def _budget_response(
+        self,
+        request: Any,
+        primary: BaseAIAdapter,
+        message: str,
+    ) -> AIResponse:
+        return AIResponse(
+            text="",
+            provider=primary.provider_id,
+            model=primary.default_model,
+            task=request.task,
+            prompt_version=request.prompt_version,
+            success=False,
+            error_message=message,
+        )
+
+    async def _check_budget(
+        self,
+        request: Any,
+        primary: BaseAIAdapter,
+        session: Optional[AsyncSession],
+    ) -> Optional[AIResponse]:
+        if session is None:
+            return None
+
+        estimate = self._estimate_request_cost(request, primary)
+        repo = AIRepository(session)
+        daily_spend = await repo.get_daily_spend()
+        daily_limit = settings.MAX_AI_COST_PER_DAY
+        if daily_spend + estimate > daily_limit:
+            return self._budget_response(
+                request,
+                primary,
+                f"Daily AI budget would be exceeded (current ${daily_spend:.4f}, "
+                f"estimated maximum ${estimate:.4f}, limit ${daily_limit:.2f}).",
+            )
+
+        project_id = request.metadata.get("project_id") if isinstance(request.metadata, dict) else None
+        if project_id:
+            spend_override = request.metadata.get("project_spend_usd")
+            if isinstance(spend_override, (int, float)) and spend_override >= 0:
+                project_spend = float(spend_override)
+            else:
+                project_spend = await repo.get_project_spend(str(project_id))
+            project_limit = settings.MAX_GENERATION_COST_PER_PROJECT
+            if project_spend + estimate > project_limit:
+                return self._budget_response(
+                    request,
+                    primary,
+                    f"Content-family AI budget would be exceeded (current ${project_spend:.4f}, "
+                    f"estimated maximum ${estimate:.4f}, limit ${project_limit:.2f}).",
+                )
+        return None
+
+    def _validate_structured_response(
+        self, request: StructuredGenerationRequest, response: AIResponse
+    ) -> AIResponse:
+        if not response.success:
+            return response
+        if response.structured_data is None:
+            response.success = False
+            response.error_message = "Schema validation error: provider returned no structured JSON object."
+            return response
+        try:
+            Draft202012Validator.check_schema(request.response_schema)
+        except SchemaError as exc:
+            response.success = False
+            response.error_message = f"Invalid response schema at {'.'.join(str(part) for part in exc.absolute_path)}."
+            return response
+        try:
+            Draft202012Validator(request.response_schema).validate(response.structured_data)
+        except JSONSchemaValidationError as exc:
+            path = ".".join(str(part) for part in exc.absolute_path) or "response"
+            validator = str(exc.validator or "contract")
+            detail = f"Schema validation error at {path} ({validator})."
+            if validator == "required" and isinstance(exc.instance, dict):
+                missing = [key for key in exc.validator_value if key not in exc.instance]
+                if missing:
+                    detail += " Missing required field(s): " + ", ".join(map(str, missing)) + "."
+            elif validator == "additionalProperties":
+                detail += " The response included fields outside the contract."
+            elif validator == "enum":
+                detail += " The response used a value outside the allowed choices."
+            response.success = False
+            response.error_message = detail
+        return response
 
     def _is_technical_or_schema_failure(self, error_msg: Optional[str]) -> bool:
         if not error_msg:
@@ -139,12 +277,20 @@ class AIProviderEngine(BaseEngine):
             "429", "500", "502", "503", "504", "408",
             "rate limit", "overloaded", "connection", "timeout",
             "schema parsing", "malformed json", "jsondecodeerror",
+            "schema validation error",
+            "max output tokens",
             "server error", "service unavailable", "timed out",
             "technical failure"
         ]
         return any(ind in lower for ind in indicators)
 
-    async def _log_telemetry(self, response: AIResponse, prompt_text: str, session: Optional[AsyncSession] = None) -> None:
+    async def _log_telemetry(
+        self,
+        response: AIResponse,
+        prompt_text: str,
+        session: Optional[AsyncSession] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
         if not session:
             return
         try:
@@ -167,6 +313,11 @@ class AIProviderEngine(BaseEngine):
                 primary_provider=response.primary_provider,
                 primary_error=response.primary_error,
                 prompt_hash=prompt_hash,
+                extra_metadata={
+                    key: metadata[key]
+                    for key in ("project_id", "content_item_id", "operation")
+                    if metadata and key in metadata and isinstance(metadata[key], (str, int))
+                },
             )
         except Exception:
             # Telemetry logging must never crash the primary execution flow
@@ -178,23 +329,32 @@ class AIProviderEngine(BaseEngine):
         session: Optional[AsyncSession] = None,
     ) -> AIResponse:
         """Execute text generation with primary adapter and technical fallback."""
-        primary = self._get_primary_adapter(request.preferred_provider)
-        resp = await primary.generate_text(request)
-
-        if not resp.success and request.allow_fallback and self.rules.get("fallback_enabled", True):
-            if self._is_technical_or_schema_failure(resp.error_message):
-                fallback = self._get_fallback_adapter()
-                fb_request = request.model_copy(update={"simulate_failure": None})
-                fb_resp = await fallback.generate_text(fb_request)
-                if fb_resp.success:
-                    fb_resp.fallback_used = True
-                    fb_resp.fallback_reason = resp.error_message
-                    fb_resp.primary_provider = primary.provider_id
-                    fb_resp.primary_error = resp.error_message
-                    resp = fb_resp
-
-        await self._log_telemetry(resp, request.prompt, session)
-        return resp
+        async with self._budget_lock:
+            primary = self._get_primary_adapter(request.preferred_provider)
+            resp = await self._check_budget(request, primary, session)
+            if resp is None:
+                resp = await primary.generate_text(request)
+                fallback_enabled = (
+                    request.allow_fallback
+                    and settings.AI_FALLBACK_ENABLED
+                    and self.rules.get("fallback_enabled", True)
+                )
+                if not resp.success and fallback_enabled and self._is_technical_or_schema_failure(resp.error_message):
+                    fallback = self._get_fallback_adapter()
+                    if fallback.provider_id != primary.provider_id:
+                        fb_resp = await fallback.generate_text(request.model_copy(update={"simulate_failure": None}))
+                        fb_resp.fallback_used = True
+                        fb_resp.fallback_reason = resp.error_message
+                        fb_resp.primary_provider = primary.provider_id
+                        fb_resp.primary_error = resp.error_message
+                        if not fb_resp.success:
+                            fb_resp.error_message = (
+                                f"Primary {primary.provider_id} failed: {resp.error_message}; "
+                                f"fallback {fallback.provider_id} failed: {fb_resp.error_message}"
+                            )
+                        resp = fb_resp
+            await self._log_telemetry(resp, request.prompt, session, request.metadata)
+            return resp
 
     async def generate_structured(
         self,
@@ -202,23 +362,37 @@ class AIProviderEngine(BaseEngine):
         session: Optional[AsyncSession] = None,
     ) -> AIResponse:
         """Execute schema-enforced structured generation with technical fallback."""
-        primary = self._get_primary_adapter(request.preferred_provider)
-        resp = await primary.generate_structured(request)
-
-        if not resp.success and request.allow_fallback and self.rules.get("fallback_enabled", True):
-            if self._is_technical_or_schema_failure(resp.error_message):
-                fallback = self._get_fallback_adapter()
-                fb_request = request.model_copy(update={"simulate_failure": None})
-                fb_resp = await fallback.generate_structured(fb_request)
-                if fb_resp.success:
-                    fb_resp.fallback_used = True
-                    fb_resp.fallback_reason = resp.error_message
-                    fb_resp.primary_provider = primary.provider_id
-                    fb_resp.primary_error = resp.error_message
-                    resp = fb_resp
-
-        await self._log_telemetry(resp, request.prompt, session)
-        return resp
+        async with self._budget_lock:
+            primary = self._get_primary_adapter(request.preferred_provider)
+            resp = await self._check_budget(request, primary, session)
+            if resp is None:
+                resp = self._validate_structured_response(
+                    request, await primary.generate_structured(request)
+                )
+                fallback_enabled = (
+                    request.allow_fallback
+                    and settings.AI_FALLBACK_ENABLED
+                    and self.rules.get("fallback_enabled", True)
+                )
+                if not resp.success and fallback_enabled and self._is_technical_or_schema_failure(resp.error_message):
+                    fallback = self._get_fallback_adapter()
+                    if fallback.provider_id != primary.provider_id:
+                        fb_resp = await fallback.generate_structured(
+                            request.model_copy(update={"simulate_failure": None})
+                        )
+                        fb_resp = self._validate_structured_response(request, fb_resp)
+                        fb_resp.fallback_used = True
+                        fb_resp.fallback_reason = resp.error_message
+                        fb_resp.primary_provider = primary.provider_id
+                        fb_resp.primary_error = resp.error_message
+                        if not fb_resp.success:
+                            fb_resp.error_message = (
+                                f"Primary {primary.provider_id} failed: {resp.error_message}; "
+                                f"fallback {fallback.provider_id} failed: {fb_resp.error_message}"
+                            )
+                        resp = fb_resp
+            await self._log_telemetry(resp, request.prompt, session, request.metadata)
+            return resp
 
     async def analyze(
         self,
@@ -226,23 +400,32 @@ class AIProviderEngine(BaseEngine):
         session: Optional[AsyncSession] = None,
     ) -> AIResponse:
         """Audit and analyze content with technical fallback."""
-        primary = self._get_primary_adapter(request.preferred_provider)
-        resp = await primary.analyze(request)
-
-        if not resp.success and request.allow_fallback and self.rules.get("fallback_enabled", True):
-            if self._is_technical_or_schema_failure(resp.error_message):
-                fallback = self._get_fallback_adapter()
-                fb_request = request.model_copy(update={"simulate_failure": None})
-                fb_resp = await fallback.analyze(fb_request)
-                if fb_resp.success:
-                    fb_resp.fallback_used = True
-                    fb_resp.fallback_reason = resp.error_message
-                    fb_resp.primary_provider = primary.provider_id
-                    fb_resp.primary_error = resp.error_message
-                    resp = fb_resp
-
-        await self._log_telemetry(resp, request.content, session)
-        return resp
+        async with self._budget_lock:
+            primary = self._get_primary_adapter(request.preferred_provider)
+            resp = await self._check_budget(request, primary, session)
+            if resp is None:
+                resp = await primary.analyze(request)
+                fallback_enabled = (
+                    request.allow_fallback
+                    and settings.AI_FALLBACK_ENABLED
+                    and self.rules.get("fallback_enabled", True)
+                )
+                if not resp.success and fallback_enabled and self._is_technical_or_schema_failure(resp.error_message):
+                    fallback = self._get_fallback_adapter()
+                    if fallback.provider_id != primary.provider_id:
+                        fb_resp = await fallback.analyze(request.model_copy(update={"simulate_failure": None}))
+                        fb_resp.fallback_used = True
+                        fb_resp.fallback_reason = resp.error_message
+                        fb_resp.primary_provider = primary.provider_id
+                        fb_resp.primary_error = resp.error_message
+                        if not fb_resp.success:
+                            fb_resp.error_message = (
+                                f"Primary {primary.provider_id} failed: {resp.error_message}; "
+                                f"fallback {fallback.provider_id} failed: {fb_resp.error_message}"
+                            )
+                        resp = fb_resp
+            await self._log_telemetry(resp, request.content, session, request.metadata)
+            return resp
 
     async def get_status(self, session: Optional[AsyncSession] = None) -> AIProviderStatus:
         """Retrieve operational health, model settings, and budget usage."""

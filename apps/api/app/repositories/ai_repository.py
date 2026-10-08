@@ -91,11 +91,18 @@ class AIRepository(BaseRepository[AIInvocationLog]):
 
         query = select(func.sum(AIInvocationLog.cost)).where(
             AIInvocationLog.created_at >= start_of_day,
-            AIInvocationLog.success == True,
         )
         result = await self.session.execute(query)
         spend = result.scalar()
         return float(spend or 0.0)
+
+    async def get_project_spend(self, project_id: str) -> float:
+        """Return recorded AI spend tagged to one content-family project ID."""
+        query = select(func.sum(AIInvocationLog.cost)).where(
+            AIInvocationLog.extra_metadata["project_id"].as_string() == project_id
+        )
+        result = await self.session.execute(query)
+        return float(result.scalar() or 0.0)
 
     async def get_analytics_summary(self, days: int = 30) -> Dict[str, Any]:
         """Compute aggregate AI metrics over a historical time window."""

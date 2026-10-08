@@ -2,10 +2,13 @@ import io
 import uuid
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from script_test_utils import prepare_script_inputs
 
 
 @pytest.mark.asyncio
-async def test_scene_studio_api_full_flow(client: AsyncClient):
+async def test_scene_studio_api_full_flow(client: AsyncClient, db_session: AsyncSession):
     test_id = uuid.uuid4().hex[:6]
 
     # 1. Setup a test script with sections
@@ -35,6 +38,7 @@ async def test_scene_studio_api_full_flow(client: AsyncClient):
     )
     assert item_res.status_code == 201
     item_id = item_res.json()["id"]
+    await prepare_script_inputs(db_session, item_id)
 
     gen_res = await client.post(
         "/api/v1/scripts/generate",

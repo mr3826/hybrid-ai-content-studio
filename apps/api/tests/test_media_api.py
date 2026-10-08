@@ -8,8 +8,10 @@ import uuid
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1 import media as media_api
+from script_test_utils import prepare_script_inputs
 
 
 def _png_chunk(kind: bytes, payload: bytes) -> bytes:
@@ -43,7 +45,7 @@ def _use_temp_media_dirs(monkeypatch, tmp_path: Path):
     return assets
 
 
-async def _create_script_and_scenes(client: AsyncClient, name: str):
+async def _create_script_and_scenes(client: AsyncClient, db_session: AsyncSession, name: str):
     family_res = await client.post(
         "/api/v1/content-families",
         json={"title": f"Media API Family ({name})", "content_pillar": "Local Media", "original_value_type": "benchmark", "summary": "Media integration fixture."},
@@ -60,6 +62,7 @@ async def _create_script_and_scenes(client: AsyncClient, name: str):
     )
     assert item_res.status_code == 201, item_res.text
     item_id = item_res.json()["id"]
+    await prepare_script_inputs(db_session, item_id)
     script_res = await client.post("/api/v1/scripts/generate", json={"content_item_id": item_id, "target_duration_sec": 18})
     assert script_res.status_code == 200, script_res.text
     script_id = script_res.json()["id"]
@@ -69,10 +72,10 @@ async def _create_script_and_scenes(client: AsyncClient, name: str):
 
 
 @pytest.mark.asyncio
-async def test_media_api_full_flow_uses_installed_voice_catalog_and_mock_is_not_ready(client: AsyncClient, monkeypatch, tmp_path):
+async def test_media_api_full_flow_uses_installed_voice_catalog_and_mock_is_not_ready(client: AsyncClient, db_session: AsyncSession, monkeypatch, tmp_path):
     _use_temp_media_dirs(monkeypatch, tmp_path)
     name = uuid.uuid4().hex[:8]
-    _, script_id, scenes = await _create_script_and_scenes(client, name)
+    _, script_id, scenes = await _create_script_and_scenes(client, db_session, name)
 
     voice_catalog = (await client.get("/api/v1/media/voices")).json()
     assert set(voice_catalog) >= {"available", "default_voice_id", "voices", "supported_languages", "unavailable_languages", "message"}
@@ -121,12 +124,12 @@ async def test_media_api_full_flow_uses_installed_voice_catalog_and_mock_is_not_
 
 
 @pytest.mark.asyncio
-async def test_media_api_real_ffmpeg_artifact_is_mock_labeled_and_dimension_checked(client: AsyncClient, monkeypatch, tmp_path):
+async def test_media_api_real_ffmpeg_artifact_is_mock_labeled_and_dimension_checked(client: AsyncClient, db_session: AsyncSession, monkeypatch, tmp_path):
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
         pytest.skip("This integration requires local FFmpeg and FFprobe.")
     assets = _use_temp_media_dirs(monkeypatch, tmp_path)
     name = uuid.uuid4().hex[:8]
-    _, script_id, scenes = await _create_script_and_scenes(client, name)
+    _, script_id, scenes = await _create_script_and_scenes(client, db_session, name)
 
     for index, scene in enumerate(scenes):
         color = ((220, 40, 35), (30, 165, 75), (35, 70, 210))[index % 3]
@@ -161,10 +164,10 @@ async def test_media_api_real_ffmpeg_artifact_is_mock_labeled_and_dimension_chec
 
 
 @pytest.mark.asyncio
-async def test_media_job_endpoint_queues_local_worker_job(client: AsyncClient, monkeypatch, tmp_path):
+async def test_media_job_endpoint_queues_local_worker_job(client: AsyncClient, db_session: AsyncSession, monkeypatch, tmp_path):
     _use_temp_media_dirs(monkeypatch, tmp_path)
     name = uuid.uuid4().hex[:8]
-    _, script_id, scenes = await _create_script_and_scenes(client, name)
+    _, script_id, scenes = await _create_script_and_scenes(client, db_session, name)
     response = await client.post(
         f"/api/v1/media/jobs/{script_id}",
         json={

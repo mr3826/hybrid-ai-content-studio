@@ -42,6 +42,7 @@ class ScriptRepository:
         target_platform: str = "youtube",
         target_duration_sec: int = 60,
         version: int = 1,
+        generation_metadata: Optional[Dict[str, Any]] = None,
     ) -> ScriptDraft:
         script = ScriptDraft(
             id=str(uuid.uuid4()),
@@ -55,6 +56,7 @@ class ScriptRepository:
             estimated_duration_sec=0,
             status="DRAFT",
             is_approved=False,
+            generation_metadata=generation_metadata,
         )
         self.session.add(script)
         await self.session.commit()
@@ -96,6 +98,7 @@ class ScriptRepository:
         heading: str,
         narration: str,
         visual_cue: str = "",
+        evidence_category: str = "context",
         estimated_seconds: int = 0,
         word_count: int = 0,
         linked_claim_ids: Optional[List[str]] = None,
@@ -114,6 +117,7 @@ class ScriptRepository:
             heading=heading,
             narration=narration,
             visual_cue=visual_cue,
+            evidence_category=evidence_category,
             estimated_seconds=estimated_seconds,
             word_count=word_count,
             linked_claim_ids=linked_claim_ids or [],
@@ -135,6 +139,19 @@ class ScriptRepository:
         for k, v in kwargs.items():
             if hasattr(section, k) and v is not None:
                 setattr(section, k, v)
+
+        script = await self.session.get(ScriptDraft, section.script_id)
+        if script and script.is_approved:
+            script.status = "SCRIPT_REVIEW"
+            script.is_approved = False
+            script.approved_by = None
+            script.approved_at = None
+            script.override_reason = None
+            item = await self.session.get(ContentItem, script.content_item_id)
+            if item and item.status == "SCRIPT_APPROVED":
+                item.status = "SCRIPT_REVIEW"
+                item.approved_at = None
+                item.updated_at = datetime.now(timezone.utc)
 
         if "narration" in kwargs and kwargs["narration"] is not None:
             section.word_count = len(section.narration.split())
@@ -203,6 +220,7 @@ class ScriptRepository:
             "total_word_count": script.total_word_count,
             "estimated_duration_sec": script.estimated_duration_sec,
             "quality_scores": script.quality_scores,
+            "generation_metadata": script.generation_metadata,
             "sections": [
                 {
                     "id": s.id,
@@ -211,6 +229,7 @@ class ScriptRepository:
                     "heading": s.heading,
                     "narration": s.narration,
                     "visual_cue": s.visual_cue,
+                    "evidence_category": s.evidence_category,
                     "estimated_seconds": s.estimated_seconds,
                     "word_count": s.word_count,
                     "linked_claim_ids": s.linked_claim_ids,
@@ -259,6 +278,12 @@ class ScriptRepository:
         script.title = snapshot.get("title", script.title)
         script.total_word_count = snapshot.get("total_word_count", 0)
         script.estimated_duration_sec = snapshot.get("estimated_duration_sec", 0)
+        script.generation_metadata = snapshot.get("generation_metadata")
+        script.status = "SCRIPT_REVIEW"
+        script.is_approved = False
+        script.approved_by = None
+        script.approved_at = None
+        script.override_reason = None
         script.updated_at = datetime.now(timezone.utc)
 
         # Clear existing sections and replace with snapshot
@@ -274,6 +299,7 @@ class ScriptRepository:
                 heading=sec_data.get("heading", ""),
                 narration=sec_data.get("narration", ""),
                 visual_cue=sec_data.get("visual_cue", ""),
+                evidence_category=sec_data.get("evidence_category", "context"),
                 estimated_seconds=sec_data.get("estimated_seconds", 0),
                 word_count=sec_data.get("word_count", 0),
                 linked_claim_ids=sec_data.get("linked_claim_ids", []),
@@ -281,6 +307,14 @@ class ScriptRepository:
             self.session.add(new_sec)
 
         await self.session.commit()
+
+        item = await self.session.get(ContentItem, script.content_item_id)
+        if item and item.status == "SCRIPT_APPROVED":
+            item.status = "SCRIPT_REVIEW"
+            item.script_version_id = script.id
+            item.approved_at = None
+            item.updated_at = datetime.now(timezone.utc)
+            await self.session.commit()
 
         # Record post-restore audit event
         await self.create_revision(
@@ -301,6 +335,18 @@ class ScriptRepository:
         await self.session.refresh(script)
         return script
 
+    async def update_generation_metadata(
+        self, script_id: str, metadata: Dict[str, Any]
+    ) -> Optional[ScriptDraft]:
+        script = await self.get_script(script_id)
+        if not script:
+            return None
+        script.generation_metadata = metadata
+        script.updated_at = datetime.now(timezone.utc)
+        await self.session.commit()
+        await self.session.refresh(script)
+        return script
+
     async def approve_script(
         self,
         script_id: str,
@@ -310,6 +356,11 @@ class ScriptRepository:
         script = await self.get_script(script_id)
         if not script:
             raise ValueError(f"Script {script_id} not found.")
+
+        if not isinstance(script.generation_metadata, dict) or not script.generation_metadata.get(
+            "approval_eligible"
+        ):
+            raise ValueError("Script output lacks live-provider provenance and cannot be approved.")
 
         script.status = "SCRIPT_APPROVED"
         script.is_approved = True
