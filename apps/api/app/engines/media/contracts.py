@@ -17,6 +17,7 @@ class VoiceConfigRequest(BaseModel):
     speed: float = Field(1.0, ge=0.5, le=2.0)
     pitch: float = Field(0.0, ge=-10.0, le=10.0)
     sample_rate: int = 44100
+    mock_mode: Optional[bool] = None  # None = inherit settings.TTS_MOCK_MODE
 
 
 class SubtitleConfigRequest(BaseModel):
@@ -24,6 +25,7 @@ class SubtitleConfigRequest(BaseModel):
     max_words_per_line: int = Field(4, ge=1, le=15)
     highlight_color: str = "#F59E0B"
     font_size: int = 42
+    silence_gap_sec: float = Field(0.2, ge=0.0, le=2.0)
 
 
 class MediaRenderConfigRequest(BaseModel):
@@ -31,6 +33,13 @@ class MediaRenderConfigRequest(BaseModel):
     fps: int = Field(30, ge=15, le=60)
     burn_subtitles: bool = False
     preset: str = "fast"
+
+    def get_normalized_resolution(self) -> str:
+        """Normalizes aspect ratio aliases to standard WxH strings."""
+        res_str = self.resolution.strip().lower()
+        if res_str in ("horizontal_16_9", "16:9", "1920x1080", "landscape"):
+            return "1920x1080"
+        return "1080x1920"
 
 
 class VoiceTrackOutput(BaseModel):
@@ -57,6 +66,8 @@ class SubtitleCueOutput(BaseModel):
     end_timestamp: str
     text: str
     scene_id: Optional[str] = None
+    cps: float = 0.0
+    wpm: float = 0.0
 
 
 class SubtitleGenerationOutput(BaseModel):
@@ -65,6 +76,9 @@ class SubtitleGenerationOutput(BaseModel):
     cue_count: int
     format: str
     cues: List[SubtitleCueOutput]
+    avg_cps: float = 0.0
+    max_cps: float = 0.0
+    pacing_status: str = "OPTIMAL"
 
 
 class MediaRenderOutput(BaseModel):

@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 import uuid
 import yaml
 
+from app.core.config import settings
 from app.engines.core.base import (
     BaseEngine,
     EngineContext,
@@ -60,6 +61,8 @@ class MediaEngine(BaseEngine):
                 "has_rules": has_rules,
                 "has_ffmpeg": has_ffmpeg,
                 "ffmpeg_path": self.ffmpeg_adapter.ffmpeg_path,
+                "ffmpeg_version": self.ffmpeg_adapter.get_ffmpeg_version(),
+                "tts_mock_mode": settings.TTS_MOCK_MODE,
                 "audio_dir": str(self.audio_synthesizer.output_dir),
                 "subtitles_dir": str(self.subtitle_adapter.output_dir),
                 "video_dir": str(self.ffmpeg_adapter.output_dir),
@@ -87,7 +90,7 @@ class MediaEngine(BaseEngine):
             )
             tracks.append(track)
 
-        silence_gap = float(self.rules.get("voice", {}).get("silence_gap_sec", 0.15))
+        silence_gap = float(self.rules.get("voice", {}).get("silence_gap_sec", 0.2))
         master_path, total_duration = self.audio_synthesizer.stitch_master_audio(
             script_id=script_id,
             tracks=tracks,
@@ -111,11 +114,13 @@ class MediaEngine(BaseEngine):
         config: Optional[SubtitleConfigRequest] = None,
     ) -> SubtitleGenerationOutput:
         """Generates synchronized SRT/VTT timed captions."""
+        silence_gap = float(self.rules.get("voice", {}).get("silence_gap_sec", 0.2))
         return self.subtitle_adapter.generate_subtitles(
             script_id=script_id,
             scenes=scenes,
             track_durations=track_durations,
             config=config,
+            silence_gap_sec=silence_gap,
         )
 
     def render_media(
@@ -126,6 +131,7 @@ class MediaEngine(BaseEngine):
         master_audio_path: str,
         total_duration_sec: float,
         config: Optional[MediaRenderConfigRequest] = None,
+        subtitle_path: Optional[str] = None,
     ) -> MediaRenderOutput:
         """Assembles scenes and master audio into final video composition."""
         cfg = config or MediaRenderConfigRequest()
@@ -136,6 +142,7 @@ class MediaEngine(BaseEngine):
             master_audio_path=master_audio_path,
             total_duration_sec=total_duration_sec,
             config=cfg,
+            subtitle_path=subtitle_path,
         )
 
     async def run(self, context: EngineContext, session=None) -> EngineResult:
@@ -177,12 +184,16 @@ class MediaEngine(BaseEngine):
         sub_out = self.generate_subtitles(script_id, scenes, track_durations=durations)
 
         # 3. Assemble video
+        burn_subs = context.parameters.get("burn_subtitles", True)
+        render_config = MediaRenderConfigRequest(burn_subtitles=burn_subs)
         render_out = self.render_media(
             script_id=script_id,
             package_id=voice_out.package_id,
             scenes=scenes,
             master_audio_path=voice_out.master_audio_path,
             total_duration_sec=voice_out.total_duration_sec,
+            config=render_config,
+            subtitle_path=sub_out.subtitle_path if burn_subs else None,
         )
 
         ended_at = datetime.now(timezone.utc)

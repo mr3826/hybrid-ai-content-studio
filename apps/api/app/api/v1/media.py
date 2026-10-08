@@ -59,6 +59,7 @@ class MediaPackageResponse(BaseModel):
     voice_settings: Dict[str, Any]
     subtitle_settings: Dict[str, Any]
     quality_checks: Dict[str, Any]
+    quality_report: Optional[Dict[str, Any]] = None
     voice_tracks: List[SceneVoiceTrackResponse] = Field(default_factory=list)
     created_at: Any
     updated_at: Any
@@ -92,6 +93,7 @@ def _serialize_package(pkg: MediaPackage) -> Dict[str, Any]:
         "voice_settings": pkg.voice_settings or {},
         "subtitle_settings": pkg.subtitle_settings or {},
         "quality_checks": pkg.quality_checks or {},
+        "quality_report": pkg.quality_checks or {},
         "voice_tracks": tracks,
         "created_at": pkg.created_at,
         "updated_at": pkg.updated_at,
@@ -330,6 +332,12 @@ async def render_script_media(
         await synthesize_script_voice(script_id, None, db)
         pkg = await media_repo.get_package_by_script(script_id)
 
+    # Auto-generate subtitles if burn_subtitles requested and not yet generated
+    if config.burn_subtitles:
+        if not pkg.subtitle_path or not Path(pkg.subtitle_path).exists():
+            sub_res = await generate_script_subtitles(script_id, None, db)
+            pkg.subtitle_path = sub_res.subtitle_path
+
     pkg.status = MediaPackageStatus.RENDERING
     await media_repo.update_package(pkg)
 
@@ -353,6 +361,7 @@ async def render_script_media(
         master_audio_path=pkg.audio_path,
         total_duration_sec=pkg.total_duration_sec,
         config=config,
+        subtitle_path=pkg.subtitle_path if config.burn_subtitles else None,
     )
 
     pkg.video_path = out.video_path
