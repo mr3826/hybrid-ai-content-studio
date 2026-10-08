@@ -52,6 +52,14 @@ class AIProviderEngine(BaseEngine):
         )
         if settings.OPENAI_PROMPT_COST_PER_MILLION is not None:
             openai_rates["prompt_per_million"] = settings.OPENAI_PROMPT_COST_PER_MILLION
+        if settings.OPENAI_CACHED_PROMPT_COST_PER_MILLION is not None:
+            openai_rates["cached_prompt_per_million"] = (
+                settings.OPENAI_CACHED_PROMPT_COST_PER_MILLION
+            )
+        if settings.OPENAI_CACHE_WRITE_PROMPT_COST_PER_MILLION is not None:
+            openai_rates["cache_write_prompt_per_million"] = (
+                settings.OPENAI_CACHE_WRITE_PROMPT_COST_PER_MILLION
+            )
         if settings.OPENAI_COMPLETION_COST_PER_MILLION is not None:
             openai_rates["completion_per_million"] = settings.OPENAI_COMPLETION_COST_PER_MILLION
         mock_rates = cost_rates.get("mock", {"prompt_per_million": 0.00, "completion_per_million": 0.00})
@@ -76,6 +84,7 @@ class AIProviderEngine(BaseEngine):
             model=settings.OPENAI_MODEL,
             cost_rates=openai_rates,
             timeout_seconds=self.rules.get("timeout_seconds", 30),
+            reasoning_effort=settings.OPENAI_REASONING_EFFORT,
         )
 
         self.mock_adapter = MockAIAdapter(cost_rates=mock_rates)
@@ -179,7 +188,7 @@ class AIProviderEngine(BaseEngine):
         primary = self._get_primary_adapter(request.preferred_provider)
         prompt = request.prompt + json.dumps(request.response_schema, separators=(",", ":"))
         prompt_tokens = max(1, math.ceil(len(prompt) / 4))
-        cost = primary.calculate_cost(prompt_tokens, request.max_tokens)
+        cost = self._maximum_provider_cost(primary, prompt_tokens, request.max_tokens)
         fallback_enabled = (
             request.allow_fallback
             and settings.AI_FALLBACK_ENABLED
@@ -187,8 +196,20 @@ class AIProviderEngine(BaseEngine):
         )
         fallback = self._get_fallback_adapter() if fallback_enabled else None
         if fallback and fallback.provider_id != primary.provider_id:
-            cost += fallback.calculate_cost(prompt_tokens, request.max_tokens)
-        return round(cost, 6)
+            cost += self._maximum_provider_cost(
+                fallback, prompt_tokens, request.max_tokens
+            )
+        return round(cost, 10)
+
+    @staticmethod
+    def _maximum_provider_cost(
+        adapter: BaseAIAdapter, prompt_tokens: int, completion_tokens: int
+    ) -> float:
+        """Use provider-specific worst-case pricing when estimating budget usage."""
+        estimator = getattr(adapter, "calculate_max_cost", None)
+        if callable(estimator):
+            return float(estimator(prompt_tokens, completion_tokens))
+        return adapter.calculate_cost(prompt_tokens, completion_tokens)
 
     def _estimate_request_cost(self, request: Any, primary: BaseAIAdapter) -> float:
         if settings.AI_MOCK_MODE or getattr(request, "preferred_provider", None) == "mock":
@@ -201,7 +222,7 @@ class AIProviderEngine(BaseEngine):
             prompt = request.content + request.instruction + " ".join(request.criteria)
         prompt_tokens = max(1, math.ceil(len(prompt) / 4))
         max_tokens = getattr(request, "max_tokens", self.rules.get("max_tokens_default", 2048))
-        cost = primary.calculate_cost(prompt_tokens, max_tokens)
+        cost = self._maximum_provider_cost(primary, prompt_tokens, max_tokens)
         fallback_enabled = (
             getattr(request, "allow_fallback", True)
             and settings.AI_FALLBACK_ENABLED
@@ -209,8 +230,8 @@ class AIProviderEngine(BaseEngine):
         )
         fallback = self._get_fallback_adapter() if fallback_enabled else None
         if fallback and fallback.provider_id != primary.provider_id:
-            cost += fallback.calculate_cost(prompt_tokens, max_tokens)
-        return round(cost, 6)
+            cost += self._maximum_provider_cost(fallback, prompt_tokens, max_tokens)
+        return round(cost, 10)
 
     def _budget_response(
         self,
@@ -382,6 +403,9 @@ class AIProviderEngine(BaseEngine):
                 if not resp.success and fallback_enabled and self._is_technical_or_schema_failure(resp.error_message):
                     fallback = self._get_fallback_adapter()
                     if fallback.provider_id != primary.provider_id:
+                        await self._log_telemetry(
+                            resp, request.prompt, session, request.metadata
+                        )
                         fb_resp = await fallback.generate_text(request.model_copy(update={"simulate_failure": None}))
                         fb_resp.fallback_used = True
                         fb_resp.fallback_reason = resp.error_message
@@ -417,6 +441,9 @@ class AIProviderEngine(BaseEngine):
                 if not resp.success and fallback_enabled and self._is_technical_or_schema_failure(resp.error_message):
                     fallback = self._get_fallback_adapter()
                     if fallback.provider_id != primary.provider_id:
+                        await self._log_telemetry(
+                            resp, request.prompt, session, request.metadata
+                        )
                         fb_resp = await fallback.generate_structured(
                             request.model_copy(update={"simulate_failure": None})
                         )
@@ -453,6 +480,9 @@ class AIProviderEngine(BaseEngine):
                 if not resp.success and fallback_enabled and self._is_technical_or_schema_failure(resp.error_message):
                     fallback = self._get_fallback_adapter()
                     if fallback.provider_id != primary.provider_id:
+                        await self._log_telemetry(
+                            resp, request.content, session, request.metadata
+                        )
                         fb_resp = await fallback.analyze(request.model_copy(update={"simulate_failure": None}))
                         fb_resp.fallback_used = True
                         fb_resp.fallback_reason = resp.error_message

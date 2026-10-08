@@ -365,6 +365,7 @@ GEMINI_API_KEY=
 QWEN_API_KEY=
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-6-luna
+OPENAI_REASONING_EFFORT=medium
 TTS_MOCK_MODE=true
 FFMPEG_BINARY=ffmpeg
 ```
@@ -485,7 +486,7 @@ npm run build
 **A:** Yes! With `AI_MOCK_MODE=true` and `TTS_MOCK_MODE=true`, the entire studio runs 100% offline on localhost. When connecting live AI models (Gemini, Qwen, or OpenAI), only outbound HTTPS calls are made to those specific LLM endpoints.
 
 #### Q: How do I switch between mock mode and real LLM models?
-**A:** Edit your `.env` file. Set `AI_MOCK_MODE=false`, choose `AI_PRIMARY_PROVIDER` (`gemini`, `qwen`, or `openai`), supply the matching API key, and restart the API server. OpenAI accepts `OPENAI_API_KEY` or the existing Windows user variable `OPENAI_COTENT_STUDIO`. The default cost rates match `gpt-6-luna`; set `OPENAI_PROMPT_COST_PER_MILLION` and `OPENAI_COMPLETION_COST_PER_MILLION` if you choose a different model. You can monitor model latency and token costs live at `/ai`.
+**A:** Edit your `.env` file. Set `AI_MOCK_MODE=false`, choose `AI_PRIMARY_PROVIDER` (`gemini`, `qwen`, or `openai`), supply the matching API key, and restart the API server. OpenAI accepts `OPENAI_API_KEY`, the existing Windows user variable `OPENAI_COTENT_STUDIO`, or `OPENAI_CONTENT_STUDIO`. The default model is `gpt-6-luna` with `OPENAI_REASONING_EFFORT=medium`; in reasoning modes the adapter omits `temperature` as required by GPT-6, while `none` sends the requested temperature. Structured script requests use strict JSON Schema output and are still checked against the original server-side schema and evidence rules. Actual input cost includes ordinary, cached, and cache-write token rates; preflight budgets use the highest configured input rate. The default cost rates match `gpt-6-luna`; set all four `OPENAI_*_COST_PER_MILLION` rates if you choose a different model. You can monitor model latency and token costs live at `/ai`.
 
 #### Q: Why are there no direct "Publish to YouTube" buttons that upload automatically?
 **A:** Under **Invariant 6 (Manual-Publish-First)**, direct social API uploads are intentionally excluded in V1. Social platform APIs often break, revoke developer keys, restrict reach on API-uploaded content, or encourage unattended auto-posting. The studio uses one-click authenticated browser launchers and formatted clipboard copy tools, ensuring the creator always maintains full control.

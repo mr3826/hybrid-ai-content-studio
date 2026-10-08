@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -44,7 +44,16 @@ class Settings(BaseSettings):
     QWEN_MODEL: str = "qwen-plus"
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_MODEL: str = "gpt-6-luna"
+    OPENAI_REASONING_EFFORT: Literal[
+        "none", "low", "medium", "high", "xhigh", "max"
+    ] = "medium"
     OPENAI_PROMPT_COST_PER_MILLION: Optional[float] = Field(default=None, ge=0.0)
+    OPENAI_CACHED_PROMPT_COST_PER_MILLION: Optional[float] = Field(
+        default=None, ge=0.0
+    )
+    OPENAI_CACHE_WRITE_PROMPT_COST_PER_MILLION: Optional[float] = Field(
+        default=None, ge=0.0
+    )
     OPENAI_COMPLETION_COST_PER_MILLION: Optional[float] = Field(default=None, ge=0.0)
     AI_PRIMARY_PROVIDER: str = "gemini"
     AI_FALLBACK_PROVIDER: str = "qwen"
@@ -60,7 +69,9 @@ class Settings(BaseSettings):
                 values["QWEN_API_KEY"] = os.getenv("QWEN_API_KEY")
             if not values.get("OPENAI_API_KEY"):
                 values["OPENAI_API_KEY"] = (
-                    os.getenv("OPENAI_COTENT_STUDIO") or os.getenv("OPENAI_API_KEY")
+                    os.getenv("OPENAI_COTENT_STUDIO")
+                    or os.getenv("OPENAI_CONTENT_STUDIO")
+                    or os.getenv("OPENAI_API_KEY")
                 )
         return values
 

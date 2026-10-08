@@ -2,7 +2,8 @@
 
 import json
 import time
-from typing import Any, Dict, Optional
+from copy import deepcopy
+from typing import Any, Dict, Literal, Optional
 from urllib.parse import quote
 
 import httpx
@@ -14,6 +15,8 @@ from app.engines.ai.contracts import (
     StructuredGenerationRequest,
     TextGenerationRequest,
 )
+
+ReasoningEffort = Literal["none", "low", "medium", "high", "xhigh", "max"]
 
 
 class OpenAIAdapter(BaseAIAdapter):
@@ -27,15 +30,82 @@ class OpenAIAdapter(BaseAIAdapter):
         model: str = "gpt-6-luna",
         cost_rates: Optional[Dict[str, float]] = None,
         timeout_seconds: float = 30.0,
+        reasoning_effort: ReasoningEffort = "medium",
     ):
+        if reasoning_effort not in {"none", "low", "medium", "high", "xhigh", "max"}:
+            raise ValueError("Unsupported GPT-6 Luna reasoning effort.")
+        rates = {
+            "prompt_per_million": 0.10,
+            "cached_prompt_per_million": 0.01,
+            "cache_write_prompt_per_million": 0.125,
+            "completion_per_million": 0.50,
+        }
+        rates.update(cost_rates or {})
         super().__init__(
             provider_id="openai",
             default_model=model,
-            cost_rates=cost_rates
-            or {"prompt_per_million": 0.10, "completion_per_million": 0.50},
+            cost_rates=rates,
         )
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
+        self.reasoning_effort = reasoning_effort
+
+    def calculate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
+        """Estimate cost at the ordinary uncached input and output token rates."""
+        prompt_rate = self.cost_rates.get("prompt_per_million", 0.0) / 1_000_000.0
+        completion_rate = (
+            self.cost_rates.get("completion_per_million", 0.0) / 1_000_000.0
+        )
+        return round(
+            prompt_tokens * prompt_rate + completion_tokens * completion_rate, 10
+        )
+
+    def calculate_max_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
+        """Conservatively budget every input token at the highest cache-write rate."""
+        prompt_rate = (
+            max(
+                self.cost_rates.get("prompt_per_million", 0.0),
+                self.cost_rates.get("cached_prompt_per_million", 0.0),
+                self.cost_rates.get("cache_write_prompt_per_million", 0.0),
+            )
+            / 1_000_000.0
+        )
+        completion_rate = (
+            self.cost_rates.get("completion_per_million", 0.0) / 1_000_000.0
+        )
+        return round(
+            prompt_tokens * prompt_rate + completion_tokens * completion_rate, 10
+        )
+
+    def _calculate_usage_cost(
+        self, usage: Dict[str, Any], output_tokens: int
+    ) -> Optional[float]:
+        """Calculate actual input cost from normal, cache-read, and cache-write counts."""
+        input_tokens = usage.get("input_tokens")
+        details = usage.get("input_tokens_details")
+        if not isinstance(details, dict):
+            return None
+        if "cached_tokens" not in details or "cache_write_tokens" not in details:
+            return None
+        cached_tokens = details.get("cached_tokens", 0)
+        cache_write_tokens = details.get("cache_write_tokens", 0)
+        for count in (input_tokens, cached_tokens, cache_write_tokens):
+            if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+                return None
+        if cached_tokens + cache_write_tokens > input_tokens:
+            return None
+
+        ordinary_tokens = input_tokens - cached_tokens - cache_write_tokens
+        input_cost = (
+            ordinary_tokens * self.cost_rates.get("prompt_per_million", 0.0)
+            + cached_tokens * self.cost_rates.get("cached_prompt_per_million", 0.0)
+            + cache_write_tokens
+            * self.cost_rates.get("cache_write_prompt_per_million", 0.0)
+        ) / 1_000_000.0
+        output_cost = (
+            output_tokens * self.cost_rates.get("completion_per_million", 0.0)
+        ) / 1_000_000.0
+        return round(input_cost + output_cost, 10)
 
     def _get_headers(self) -> Dict[str, str]:
         headers = {"Content-Type": "application/json"}
@@ -52,30 +122,149 @@ class OpenAIAdapter(BaseAIAdapter):
         prompt_version: str,
         message: str,
         started_at: float,
+        *,
+        model: Optional[str] = None,
+        usage: Any = None,
     ) -> AIResponse:
-        return AIResponse(
+        response = AIResponse(
             text="",
             structured_data=None,
             provider=self.provider_id,
-            model=self.default_model,
+            model=model or self.default_model,
             task=task,
             prompt_version=prompt_version,
             success=False,
             error_message=self._sanitize_error(message),
             latency_ms=round((time.perf_counter() - started_at) * 1000, 2),
         )
+        self._apply_usage(response, usage)
+        return response
+
+    def _apply_usage(self, response: AIResponse, usage: Any) -> bool:
+        """Record billable input/output tokens, even for failed provider responses."""
+        if not isinstance(usage, dict):
+            return False
+        input_tokens = usage.get("input_tokens")
+        output_tokens = usage.get("output_tokens")
+        total_tokens = usage.get("total_tokens")
+        if (
+            not isinstance(input_tokens, int)
+            or isinstance(input_tokens, bool)
+            or input_tokens < 0
+            or not isinstance(output_tokens, int)
+            or isinstance(output_tokens, bool)
+            or output_tokens < 0
+        ):
+            return False
+
+        response.prompt_tokens = input_tokens
+        response.completion_tokens = output_tokens
+        # OpenAI output_tokens includes reasoning tokens and remains billable even if
+        # the response is incomplete or refused.
+        actual_cost = self._calculate_usage_cost(usage, output_tokens)
+        response.cost = (
+            actual_cost
+            if actual_cost is not None
+            else self.calculate_max_cost(input_tokens, output_tokens)
+        )
+        if (
+            not isinstance(total_tokens, int)
+            or isinstance(total_tokens, bool)
+            or total_tokens < 0
+        ):
+            response.total_tokens = input_tokens + output_tokens
+            return False
+        response.total_tokens = total_tokens
+        return total_tokens == input_tokens + output_tokens and actual_cost is not None
+
+    @staticmethod
+    def _strict_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
+        """Project a server schema into OpenAI strict Structured Outputs form.
+
+        Required fields and additional-property checks remain enforced again by the
+        AI engine against the original request schema after parsing.
+        """
+
+        def normalize(value: Any) -> Any:
+            if isinstance(value, list):
+                return [normalize(item) for item in value]
+            if not isinstance(value, dict):
+                return value
+
+            normalized: Dict[str, Any] = {}
+            for key, item in value.items():
+                if key in {"title", "default"}:
+                    continue
+                if key == "properties" and isinstance(item, dict):
+                    # Property names are user schema keys; a field named "title"
+                    # must not be confused with the JSON Schema title annotation.
+                    normalized[key] = {
+                        property_name: normalize(property_schema)
+                        for property_name, property_schema in item.items()
+                    }
+                elif key in {"$defs", "definitions"} and isinstance(item, dict):
+                    normalized[key] = {
+                        definition_name: normalize(definition_schema)
+                        for definition_name, definition_schema in item.items()
+                    }
+                else:
+                    normalized[key] = normalize(item)
+            properties = normalized.get("properties")
+            if isinstance(properties, dict):
+                normalized["type"] = "object"
+                normalized["required"] = list(properties)
+                normalized["additionalProperties"] = False
+            elif normalized.get("type") == "object":
+                normalized["properties"] = {}
+                normalized["required"] = []
+                normalized["additionalProperties"] = False
+            return normalized
+
+        strict_schema = normalize(deepcopy(schema))
+        if not isinstance(strict_schema, dict) or strict_schema.get("type") != "object":
+            raise ValueError(
+                "OpenAI Structured Outputs requires an object JSON Schema root."
+            )
+        return strict_schema
+
+    @staticmethod
+    def _contains_refusal(data: Dict[str, Any]) -> bool:
+        refusal = data.get("refusal")
+        if isinstance(refusal, str) and refusal.strip():
+            return True
+        output = data.get("output")
+        if not isinstance(output, list):
+            return False
+        for item in output:
+            if not isinstance(item, dict):
+                continue
+            content_items = item.get("content")
+            if not isinstance(content_items, list):
+                continue
+            if any(
+                isinstance(content, dict) and content.get("type") == "refusal"
+                for content in content_items
+            ):
+                return True
+        return False
 
     @staticmethod
     def _extract_text(data: Dict[str, Any]) -> str:
         output_text = data.get("output_text")
-        if isinstance(output_text, str):
+        if isinstance(output_text, str) and output_text.strip():
             return output_text.strip()
 
         chunks: list[str] = []
-        for item in data.get("output", []):
+        output = data.get("output", [])
+        if not isinstance(output, list):
+            return ""
+        for item in output:
             if not isinstance(item, dict) or item.get("type") != "message":
                 continue
-            for content in item.get("content", []):
+            content_items = item.get("content", [])
+            if not isinstance(content_items, list):
+                continue
+            for content in content_items:
                 if isinstance(content, dict) and content.get("type") == "output_text":
                     text = content.get("text")
                     if isinstance(text, str):
@@ -91,7 +280,7 @@ class OpenAIAdapter(BaseAIAdapter):
         prompt_version: str,
         temperature: float,
         max_tokens: int,
-        json_mode: bool = False,
+        structured_schema: Optional[Dict[str, Any]] = None,
         simulate_failure: Optional[str] = None,
     ) -> AIResponse:
         started_at = time.perf_counter()
@@ -136,14 +325,33 @@ class OpenAIAdapter(BaseAIAdapter):
             "model": self.default_model,
             "input": prompt,
             "max_output_tokens": max_tokens,
-            "temperature": temperature,
+            "reasoning": {"effort": self.reasoning_effort},
             # Script and research prompts can contain private local workspace data.
             "store": False,
         }
+        # GPT-6 rejects sampling parameters when reasoning effort is active.
+        if self.reasoning_effort == "none":
+            payload["temperature"] = temperature
         if system_prompt:
             payload["instructions"] = system_prompt
-        if json_mode:
-            payload["text"] = {"format": {"type": "json_object"}}
+        if structured_schema is not None:
+            try:
+                strict_schema = self._strict_schema(structured_schema)
+            except ValueError as exc:
+                return self._failure(
+                    task,
+                    prompt_version,
+                    str(exc),
+                    started_at,
+                )
+            payload["text"] = {
+                "format": {
+                    "type": "json_schema",
+                    "name": "studio_structured_output",
+                    "strict": True,
+                    "schema": strict_schema,
+                }
+            }
 
         try:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
@@ -183,20 +391,72 @@ class OpenAIAdapter(BaseAIAdapter):
                     "OpenAI returned an invalid response object.",
                     started_at,
                 )
+            response_model = data.get("model")
+            response_model = (
+                response_model
+                if isinstance(response_model, str) and response_model
+                else self.default_model
+            )
+            usage = data.get("usage")
             response_status = data.get("status")
-            if response_status and response_status != "completed":
+            if not isinstance(response_status, str) or not response_status:
+                return self._failure(
+                    task,
+                    prompt_version,
+                    "OpenAI response is missing a valid completion status.",
+                    started_at,
+                    model=response_model,
+                    usage=usage,
+                )
+            if response_status != "completed":
                 incomplete_details = data.get("incomplete_details")
                 reason = (
                     incomplete_details.get("reason")
                     if isinstance(incomplete_details, dict)
                     else None
                 )
-                suffix = f" ({reason})" if isinstance(reason, str) else ""
+                if response_status == "incomplete" and reason == "max_output_tokens":
+                    detail = (
+                        "OpenAI response incomplete: max output tokens limit reached."
+                    )
+                elif response_status == "incomplete" and reason == "content_filter":
+                    detail = "OpenAI response incomplete due to content filtering."
+                elif response_status == "failed":
+                    error = data.get("error")
+                    code = error.get("code") if isinstance(error, dict) else None
+                    provider_message = (
+                        error.get("message") if isinstance(error, dict) else None
+                    )
+                    if isinstance(code, str) and code:
+                        detail = f"OpenAI response failed ({code.replace('_', ' ')})"
+                    else:
+                        detail = "OpenAI response failed without a provider error code"
+                    if isinstance(provider_message, str) and provider_message:
+                        detail += f": {provider_message[:200]}"
+                    else:
+                        detail += "."
+                else:
+                    suffix = f" ({reason})" if isinstance(reason, str) else ""
+                    detail = (
+                        f"OpenAI response did not complete: {response_status}{suffix}."
+                    )
                 return self._failure(
                     task,
                     prompt_version,
-                    f"OpenAI response did not complete: {response_status}{suffix}.",
+                    detail,
                     started_at,
+                    model=response_model,
+                    usage=usage,
+                )
+
+            if self._contains_refusal(data):
+                return self._failure(
+                    task,
+                    prompt_version,
+                    "OpenAI refused to generate this response.",
+                    started_at,
+                    model=response_model,
+                    usage=usage,
                 )
 
             text = self._extract_text(data)
@@ -206,58 +466,28 @@ class OpenAIAdapter(BaseAIAdapter):
                     prompt_version,
                     "OpenAI returned no assistant text output.",
                     started_at,
+                    model=response_model,
+                    usage=usage,
                 )
 
-            usage = data.get("usage")
-            if not isinstance(usage, dict):
-                return self._failure(
-                    task,
-                    prompt_version,
-                    "OpenAI did not return token usage; refusing to report an unmeasured production cost.",
-                    started_at,
-                )
-            prompt_tokens = usage.get("input_tokens")
-            completion_tokens = usage.get("output_tokens")
-            total_tokens = usage.get("total_tokens")
-            if (
-                not isinstance(prompt_tokens, int)
-                or isinstance(prompt_tokens, bool)
-                or prompt_tokens < 0
-                or not isinstance(completion_tokens, int)
-                or isinstance(completion_tokens, bool)
-                or completion_tokens < 0
-                or not isinstance(total_tokens, int)
-                or isinstance(total_tokens, bool)
-                or total_tokens < 0
-            ):
-                return self._failure(
-                    task,
-                    prompt_version,
-                    "OpenAI returned invalid token usage data.",
-                    started_at,
-                )
-            if total_tokens != prompt_tokens + completion_tokens:
-                return self._failure(
-                    task,
-                    prompt_version,
-                    "OpenAI returned inconsistent token usage data.",
-                    started_at,
-                )
-
-            return AIResponse(
+            result = AIResponse(
                 text=text,
                 structured_data=None,
                 provider=self.provider_id,
-                model=str(data.get("model") or self.default_model),
+                model=response_model,
                 task=task,
                 prompt_version=prompt_version,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                total_tokens=total_tokens,
-                cost=self.calculate_cost(prompt_tokens, completion_tokens),
                 latency_ms=round((time.perf_counter() - started_at) * 1000, 2),
                 success=True,
             )
+            if not self._apply_usage(result, usage):
+                result.success = False
+                result.text = ""
+                result.error_message = (
+                    "OpenAI returned missing or inconsistent token usage data; "
+                    "refusing to report an unmeasured production result."
+                )
+            return result
         except httpx.TimeoutException:
             return self._failure(
                 task, prompt_version, "OpenAI request timed out.", started_at
@@ -293,19 +523,14 @@ class OpenAIAdapter(BaseAIAdapter):
         self, request: StructuredGenerationRequest
     ) -> AIResponse:
         """Generate JSON, then leave contract validation to the central AI engine."""
-        prompt = (
-            f"{request.prompt}\n\n"
-            "Return one JSON object, with no Markdown fences, that follows this JSON Schema:\n"
-            f"{json.dumps(request.response_schema, ensure_ascii=False, indent=2)}"
-        )
         response = await self._generate(
-            prompt=prompt,
+            prompt=request.prompt,
             system_prompt=request.system_prompt,
             task=request.task,
             prompt_version=request.prompt_version,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
-            json_mode=True,
+            structured_schema=request.response_schema,
             simulate_failure=request.simulate_failure,
         )
         if not response.success:
@@ -315,12 +540,14 @@ class OpenAIAdapter(BaseAIAdapter):
             parsed = json.loads(response.text)
         except json.JSONDecodeError:
             response.success = False
+            response.text = ""
             response.error_message = (
                 "Schema parsing error: OpenAI returned malformed JSON."
             )
             return response
         if not isinstance(parsed, dict):
             response.success = False
+            response.text = ""
             response.error_message = (
                 "Schema parsing error: OpenAI did not return a JSON object."
             )
