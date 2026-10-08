@@ -12,18 +12,25 @@ from script_test_utils import prepare_script_inputs
 
 
 LIVE_SMOKE_ENABLED = os.environ.get("RUN_LIVE_AI_SMOKE") == "1"
-LIVE_PROVIDER_CONFIGURED = bool(settings.GEMINI_API_KEY or settings.QWEN_API_KEY)
+LIVE_PROVIDER = os.environ.get("LIVE_AI_PROVIDER", "openai").strip().lower()
+LIVE_PROVIDER_KEYS = {
+    "gemini": settings.GEMINI_API_KEY,
+    "qwen": settings.QWEN_API_KEY,
+    "openai": settings.OPENAI_API_KEY,
+}
+LIVE_PROVIDER_CONFIGURED = bool(LIVE_PROVIDER_KEYS.get(LIVE_PROVIDER))
 
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(
     not LIVE_SMOKE_ENABLED or not LIVE_PROVIDER_CONFIGURED,
-    reason="Set RUN_LIVE_AI_SMOKE=1 and configure a real provider key to run the live smoke.",
+    reason="Set RUN_LIVE_AI_SMOKE=1 and configure the LIVE_AI_PROVIDER key to run the live smoke.",
 )
 async def test_live_provider_script_uses_verified_official_source(
     client: AsyncClient, db_session: AsyncSession, monkeypatch
 ):
     monkeypatch.setattr(settings, "AI_MOCK_MODE", False)
+    monkeypatch.setattr(settings, "AI_PRIMARY_PROVIDER", LIVE_PROVIDER)
     topic = "SQLite WAL reader and writer concurrency"
     family_res = await client.post(
         "/api/v1/content-families",
@@ -71,7 +78,7 @@ async def test_live_provider_script_uses_verified_official_source(
     script = response.json()
     metadata = script["generation_metadata"]
     assert metadata["generation_mode"] == "live"
-    assert metadata["provider"] in {"gemini", "qwen"}
+    assert metadata["provider"] == LIVE_PROVIDER
     assert metadata["model"] and "mock" not in metadata["model"].casefold()
     assert metadata["total_tokens"] > 0
     evidence_sections = [section for section in script["sections"] if section["section_type"] == "evidence"]

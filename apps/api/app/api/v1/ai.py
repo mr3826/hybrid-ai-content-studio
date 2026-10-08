@@ -12,6 +12,7 @@ from app.engines.ai.contracts import (
     AnalyzeRequest,
     AIResponse,
     AIProviderStatus,
+    ProviderName,
 )
 from app.engines.ai.engine import AIProviderEngine
 from app.engines.core.base import EngineContext, EngineResult
@@ -55,7 +56,7 @@ class RunRequest(BaseModel):
     dry_run: bool = False
     task: str = "generate_text"
     prompt: str = "Benchmark prompt"
-    preferred_provider: Optional[str] = None
+    preferred_provider: Optional[ProviderName] = None
     simulate_failure: Optional[str] = None
 
 

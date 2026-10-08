@@ -24,6 +24,9 @@ cost_rates:
   qwen:
     prompt_per_million: 0.40
     completion_per_million: 1.20
+  openai:
+    prompt_per_million: 0.10
+    completion_per_million: 0.50
   mock:
     prompt_per_million: 0.00
     completion_per_million: 0.00

@@ -130,10 +130,11 @@ def _response(data=None, *, provider="gemini", success=True, error=None):
 
 
 @pytest.mark.asyncio
-async def test_live_provider_output_is_structured_grounded_and_records_provenance(monkeypatch):
+@pytest.mark.parametrize("provider_name", ["gemini", "qwen", "openai"])
+async def test_live_provider_output_is_structured_grounded_and_records_provenance(monkeypatch, provider_name):
     monkeypatch.setattr(settings, "AI_MOCK_MODE", False)
     request, context, claim_id = _request()
-    provider = _Provider(_response(_structured_output(claim_id=claim_id)))
+    provider = _Provider(_response(_structured_output(claim_id=claim_id), provider=provider_name))
     service = ScriptGenerationService(ContentEngine())
 
     result = await service.generate(
@@ -148,7 +149,7 @@ async def test_live_provider_output_is_structured_grounded_and_records_provenanc
 
     assert result.metadata["generation_mode"] == "live"
     assert result.metadata["approval_eligible"] is True
-    assert result.metadata["provider"] == "gemini"
+    assert result.metadata["provider"] == provider_name
     assert result.metadata["total_tokens"] == 200
     assert result.metadata["estimated_cost_usd"] == 0.001
     assert result.metadata["evidence_claim_ids"] == [claim_id]

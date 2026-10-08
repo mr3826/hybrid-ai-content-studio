@@ -350,7 +350,7 @@ class QwenAdapter(BaseAIAdapter):
             task=request.task,
             prompt_version=request.prompt_version,
             temperature=request.temperature,
-            preferred_provider=self.provider_id,
+            preferred_provider="qwen",
             allow_fallback=request.allow_fallback,
         )
         return await self.generate_structured(structured_req)

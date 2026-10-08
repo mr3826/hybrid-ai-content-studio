@@ -715,7 +715,7 @@ export default function ScriptStudioPage() {
                 <p className="text-[11px] text-slate-500 leading-relaxed">
                   {script.generation_metadata?.approval_eligible
                     ? <>Final approval transitions this script to <span className="text-purple-300 font-semibold">SCRIPT_APPROVED</span> and locks the content item status. Blocking quality issues require an explicit override reason.</>
-                    : "This preview has no verified live-provider provenance. Generate with Gemini or Qwen before requesting approval."}
+                    : "This preview has no verified live-provider provenance. Generate with Gemini, Qwen, or OpenAI before requesting approval."}
                 </p>
                 <button
                   onClick={() => {

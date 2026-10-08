@@ -87,7 +87,7 @@ banned clichés, visual identity, platform adaptations     dates, entities, flag
   ┌───────────────────────┴───────────────────────────────────┬───────────────────────┐
   ▼                                                           ▼                       ▼
 08. AI PROVIDER ENGINE                                    09. ORIGINALITY ENGINE  10. CONTENT FAMILIES
-Pluggable Gemini primary, Qwen fallback, mock mode,       "What are WE adding?"   Parent-child structure,
+Pluggable Gemini, Qwen, optional OpenAI, mock mode,        "What are WE adding?"   Parent-child structure,
 token cost tracking & latency telemetry                   gate, 12 test formats,  shared research,
                                                           quarantine summaries    amortized economics
   │                                                           │                       │
@@ -363,6 +363,8 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8400
 AI_MOCK_MODE=true
 GEMINI_API_KEY=
 QWEN_API_KEY=
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-6-luna
 TTS_MOCK_MODE=true
 FFMPEG_BINARY=ffmpeg
 ```
@@ -480,10 +482,10 @@ npm run build
 ## 10. Troubleshooting & FAQ
 
 #### Q: Can I run this completely offline without any internet connection?
-**A:** Yes! With `AI_MOCK_MODE=true` and `TTS_MOCK_MODE=true`, the entire studio runs 100% offline on localhost. When connecting live AI models (Gemini / Qwen), only outbound HTTPS calls are made to those specific LLM endpoints.
+**A:** Yes! With `AI_MOCK_MODE=true` and `TTS_MOCK_MODE=true`, the entire studio runs 100% offline on localhost. When connecting live AI models (Gemini, Qwen, or OpenAI), only outbound HTTPS calls are made to those specific LLM endpoints.
 
 #### Q: How do I switch between mock mode and real LLM models?
-**A:** Edit your `.env` file. Set `AI_MOCK_MODE=false`, supply your `GEMINI_API_KEY` or `QWEN_API_KEY`, and restart the API server. You can also monitor model latency and token costs live at `/ai`.
+**A:** Edit your `.env` file. Set `AI_MOCK_MODE=false`, choose `AI_PRIMARY_PROVIDER` (`gemini`, `qwen`, or `openai`), supply the matching API key, and restart the API server. OpenAI accepts `OPENAI_API_KEY` or the existing Windows user variable `OPENAI_COTENT_STUDIO`. The default cost rates match `gpt-6-luna`; set `OPENAI_PROMPT_COST_PER_MILLION` and `OPENAI_COMPLETION_COST_PER_MILLION` if you choose a different model. You can monitor model latency and token costs live at `/ai`.
 
 #### Q: Why are there no direct "Publish to YouTube" buttons that upload automatically?
 **A:** Under **Invariant 6 (Manual-Publish-First)**, direct social API uploads are intentionally excluded in V1. Social platform APIs often break, revoke developer keys, restrict reach on API-uploaded content, or encourage unattended auto-posting. The studio uses one-click authenticated browser launchers and formatted clipboard copy tools, ensuring the creator always maintains full control.

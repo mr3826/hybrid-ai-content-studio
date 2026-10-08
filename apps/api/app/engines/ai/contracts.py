@@ -1,5 +1,7 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
+
+ProviderName = Literal["gemini", "qwen", "openai", "mock"]
 
 
 class TextGenerationRequest(BaseModel):
@@ -10,7 +12,7 @@ class TextGenerationRequest(BaseModel):
     prompt_version: str = Field(default="1.0.0", description="Version of the prompt template")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=2048, ge=1, le=8192)
-    preferred_provider: Optional[str] = Field(None, description="gemini, qwen, or mock")
+    preferred_provider: Optional[ProviderName] = Field(None, description="gemini, qwen, openai, or mock")
     allow_fallback: bool = Field(default=True, description="Whether to trigger fallback on technical error")
     simulate_failure: Optional[str] = Field(None, description="Test hook: rate_limit, server_error, schema_error")
     metadata: Dict[str, Any] = Field(default_factory=dict)
@@ -27,7 +29,7 @@ class StructuredGenerationRequest(BaseModel):
     prompt_version: str = Field(default="1.0.0", description="Prompt version")
     temperature: float = Field(default=0.2, ge=0.0, le=2.0)
     max_tokens: int = Field(default=2048, ge=1, le=8192)
-    preferred_provider: Optional[str] = Field(None, description="gemini, qwen, or mock")
+    preferred_provider: Optional[ProviderName] = Field(None, description="gemini, qwen, openai, or mock")
     allow_fallback: bool = Field(default=True, description="Whether to trigger fallback on schema/technical failure")
     simulate_failure: Optional[str] = Field(None, description="Test hook: rate_limit, server_error, schema_error")
     metadata: Dict[str, Any] = Field(default_factory=dict)
@@ -43,7 +45,7 @@ class AnalyzeRequest(BaseModel):
     task: str = Field(default="analyze", description="Task classification")
     prompt_version: str = Field(default="1.0.0", description="Prompt version")
     temperature: float = Field(default=0.2, ge=0.0, le=2.0)
-    preferred_provider: Optional[str] = Field(None, description="gemini, qwen, or mock")
+    preferred_provider: Optional[ProviderName] = Field(None, description="gemini, qwen, openai, or mock")
     allow_fallback: bool = Field(default=True, description="Whether to trigger fallback on technical failure")
     simulate_failure: Optional[str] = Field(None, description="Test hook")
     metadata: Dict[str, Any] = Field(default_factory=dict)
@@ -55,7 +57,7 @@ class AIResponse(BaseModel):
     """Output contract produced by any AI provider adapter or central engine."""
     text: str = Field(..., description="Generated text or stringified response")
     structured_data: Optional[Dict[str, Any]] = Field(None, description="Parsed JSON object if structured")
-    provider: str = Field(..., description="gemini, qwen, or mock")
+    provider: str = Field(..., description="gemini, qwen, openai, or mock")
     model: str = Field(..., description="Model string invoked")
     task: str = Field(default="unknown")
     prompt_version: str = Field(default="1.0.0")

@@ -138,7 +138,7 @@ class ScriptGenerationService:
         if not value:
             return value
         sanitized = value[:1000]
-        for secret in (settings.GEMINI_API_KEY, settings.QWEN_API_KEY):
+        for secret in (settings.GEMINI_API_KEY, settings.QWEN_API_KEY, settings.OPENAI_API_KEY):
             if secret:
                 sanitized = sanitized.replace(secret, "[REDACTED]")
         return sanitized
@@ -486,7 +486,7 @@ class ScriptGenerationService:
         context: ScriptGenerationContext,
         evidence_claim_ids: list[str],
     ) -> dict[str, Any]:
-        live_provider = response.provider in ("gemini", "qwen")
+        live_provider = response.provider in ("gemini", "qwen", "openai")
         warnings = list(context.warnings)
         if response.fallback_used:
             warnings.append(
@@ -601,7 +601,7 @@ class ScriptGenerationService:
             response.structured_data,
             request,
             context.numeric_evidence,
-            mock_output=response.provider not in ("gemini", "qwen"),
+            mock_output=response.provider not in ("gemini", "qwen", "openai"),
         )
         total_words = sum(section.word_count for section in sections)
         estimated_duration = sum(section.estimated_seconds for section in sections)
@@ -744,7 +744,7 @@ class ScriptGenerationService:
             raise ScriptGenerationError(
                 "Refinement includes blocked niche topics: " + ", ".join(blocked_topics) + "."
             )
-        if response.provider in ("gemini", "qwen"):
+        if response.provider in ("gemini", "qwen", "openai"):
             unsupported = self._unsupported_metrics(
                 narration + " " + refined.visual_cue,
                 context.numeric_evidence,

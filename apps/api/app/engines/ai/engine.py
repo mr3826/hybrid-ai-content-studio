@@ -28,6 +28,7 @@ from app.engines.ai.contracts import (
 from app.engines.ai.adapters.base import BaseAIAdapter
 from app.engines.ai.adapters.gemini import GeminiAdapter
 from app.engines.ai.adapters.qwen import QwenAdapter
+from app.engines.ai.adapters.openai import OpenAIAdapter
 from app.engines.ai.adapters.mock import MockAIAdapter
 from app.repositories.ai_repository import AIRepository
 
@@ -35,7 +36,7 @@ from app.repositories.ai_repository import AIRepository
 class AIProviderEngine(BaseEngine):
     """Centralized pluggable AI Provider Engine.
 
-    Manages LLM provider adapters (Gemini primary, Qwen fallback, Mock for testing),
+    Manages LLM provider adapters (Gemini, Qwen, OpenAI, and Mock for testing),
     enforces technical/schema fallback rules, calculates token usage and cost,
     and logs immutable invocation telemetry.
     """
@@ -46,6 +47,13 @@ class AIProviderEngine(BaseEngine):
         cost_rates = self.rules.get("cost_rates", {})
         gemini_rates = cost_rates.get("gemini", {"prompt_per_million": 0.10, "completion_per_million": 0.40})
         qwen_rates = cost_rates.get("qwen", {"prompt_per_million": 0.40, "completion_per_million": 1.20})
+        openai_rates = dict(
+            cost_rates.get("openai", {"prompt_per_million": 0.10, "completion_per_million": 0.50})
+        )
+        if settings.OPENAI_PROMPT_COST_PER_MILLION is not None:
+            openai_rates["prompt_per_million"] = settings.OPENAI_PROMPT_COST_PER_MILLION
+        if settings.OPENAI_COMPLETION_COST_PER_MILLION is not None:
+            openai_rates["completion_per_million"] = settings.OPENAI_COMPLETION_COST_PER_MILLION
         mock_rates = cost_rates.get("mock", {"prompt_per_million": 0.00, "completion_per_million": 0.00})
 
         self.gemini_adapter = GeminiAdapter(
@@ -63,7 +71,19 @@ class AIProviderEngine(BaseEngine):
             timeout_seconds=self.rules.get("timeout_seconds", 30),
         )
 
+        self.openai_adapter = OpenAIAdapter(
+            api_key=settings.OPENAI_API_KEY,
+            model=settings.OPENAI_MODEL,
+            cost_rates=openai_rates,
+            timeout_seconds=self.rules.get("timeout_seconds", 30),
+        )
+
         self.mock_adapter = MockAIAdapter(cost_rates=mock_rates)
+        self.provider_adapters: Dict[str, BaseAIAdapter] = {
+            "gemini": self.gemini_adapter,
+            "qwen": self.qwen_adapter,
+            "openai": self.openai_adapter,
+        }
         self._budget_lock = asyncio.Lock()
 
     def validate_config(self) -> None:
@@ -72,6 +92,11 @@ class AIProviderEngine(BaseEngine):
             raise ValueError("AIProviderEngine rules cannot be empty.")
         if "primary_provider" not in self.rules:
             raise ValueError("primary_provider must be defined in AI rules.")
+        supported_providers = {"gemini", "qwen", "openai"}
+        if settings.AI_PRIMARY_PROVIDER not in supported_providers:
+            raise ValueError("AI_PRIMARY_PROVIDER must be gemini, qwen, or openai.")
+        if settings.AI_FALLBACK_PROVIDER not in supported_providers:
+            raise ValueError("AI_FALLBACK_PROVIDER must be gemini, qwen, or openai.")
 
     def health(self) -> EngineHealth:
         """Perform active sync health check for BaseEngine contract."""
@@ -85,14 +110,19 @@ class AIProviderEngine(BaseEngine):
                     "fallback": "mock",
                 },
             )
-        primary_configured = bool(settings.GEMINI_API_KEY)
-        fallback_configured = bool(settings.QWEN_API_KEY)
+        primary_provider = settings.AI_PRIMARY_PROVIDER
+        fallback_provider = settings.AI_FALLBACK_PROVIDER
+        primary_configured = self._provider_is_configured(primary_provider)
+        fallback_configured = self._provider_is_configured(fallback_provider)
         if primary_configured and fallback_configured:
             status = "healthy"
-            msg = "Gemini and Qwen adapters configured."
+            msg = f"{primary_provider} primary and {fallback_provider} fallback adapters configured."
         elif primary_configured or fallback_configured:
             status = "degraded"
-            msg = f"Partial configuration (Gemini: {primary_configured}, Qwen: {fallback_configured})."
+            msg = (
+                f"Partial configuration ({primary_provider}: {primary_configured}, "
+                f"{fallback_provider}: {fallback_configured})."
+            )
         else:
             status = "degraded"
             msg = "No external AI API keys configured (set in environment or enable AI_MOCK_MODE)."
@@ -100,7 +130,9 @@ class AIProviderEngine(BaseEngine):
             status=status,
             message=msg,
             details={
+                "primary_provider": primary_provider,
                 "primary_configured": primary_configured,
+                "fallback_provider": fallback_provider,
                 "fallback_configured": fallback_configured,
                 "mock_mode": settings.AI_MOCK_MODE,
             },
@@ -115,9 +147,16 @@ class AIProviderEngine(BaseEngine):
         if settings.AI_MOCK_MODE or preferred == "mock":
             return self.mock_adapter
         provider = preferred or settings.AI_PRIMARY_PROVIDER or self.rules.get("primary_provider", "gemini")
-        if provider == "qwen":
-            return self.qwen_adapter
-        return self.gemini_adapter
+        try:
+            return self.provider_adapters[provider]
+        except KeyError as exc:
+            raise ValueError(f"Unsupported AI provider: {provider}.") from exc
+
+    def _provider_is_configured(self, provider: str) -> bool:
+        if settings.AI_MOCK_MODE:
+            return True
+        adapter = self.provider_adapters.get(provider)
+        return bool(getattr(adapter, "api_key", None))
 
     def _get_fallback_adapter(self) -> BaseAIAdapter:
         if settings.AI_MOCK_MODE:
@@ -127,9 +166,10 @@ class AIProviderEngine(BaseEngine):
             adapter.default_model = "mock-qwen-fallback-model"
             return adapter
         provider = settings.AI_FALLBACK_PROVIDER or self.rules.get("fallback_provider", "qwen")
-        if provider == "gemini":
-            return self.gemini_adapter
-        return self.qwen_adapter
+        try:
+            return self.provider_adapters[provider]
+        except KeyError as exc:
+            raise ValueError(f"Unsupported AI fallback provider: {provider}.") from exc
 
     def estimate_max_cost(self, request: StructuredGenerationRequest) -> float:
         """Estimate the maximum configured provider cost, including an eligible fallback."""
@@ -438,14 +478,18 @@ class AIProviderEngine(BaseEngine):
                 daily_spend = 0.0
 
         daily_limit = settings.MAX_AI_COST_PER_DAY
+        # Report configured routing even while mock mode temporarily routes calls
+        # through the mock adapter. This keeps status useful and stable offline.
+        primary = self.provider_adapters[settings.AI_PRIMARY_PROVIDER]
+        fallback = self.provider_adapters[settings.AI_FALLBACK_PROVIDER]
         return AIProviderStatus(
             mock_mode=settings.AI_MOCK_MODE,
-            primary_provider="gemini",
-            primary_configured=bool(settings.GEMINI_API_KEY) or settings.AI_MOCK_MODE,
-            primary_model=settings.GEMINI_MODEL,
-            fallback_provider="qwen",
-            fallback_configured=bool(settings.QWEN_API_KEY) or settings.AI_MOCK_MODE,
-            fallback_model=settings.QWEN_MODEL,
+            primary_provider=primary.provider_id,
+            primary_configured=self._provider_is_configured(primary.provider_id),
+            primary_model=primary.default_model,
+            fallback_provider=fallback.provider_id,
+            fallback_configured=self._provider_is_configured(fallback.provider_id),
+            fallback_model=fallback.default_model,
             fallback_enabled=settings.AI_FALLBACK_ENABLED,
             daily_spend_today=round(daily_spend, 4),
             daily_budget_limit=daily_limit,
@@ -512,22 +556,28 @@ class AIProviderEngine(BaseEngine):
                 },
             )
 
-        gemini_health = await self.gemini_adapter.health_check()
-        qwen_health = await self.qwen_adapter.health_check()
-
-        overall_status = "healthy"
-        if gemini_health["status"] != "healthy" and qwen_health["status"] != "healthy":
-            overall_status = "failing"
-        elif gemini_health["status"] != "healthy" or qwen_health["status"] != "healthy":
+        health_by_provider = {
+            name: await adapter.health_check()
+            for name, adapter in self.provider_adapters.items()
+        }
+        active_providers = [settings.AI_PRIMARY_PROVIDER]
+        if settings.AI_FALLBACK_ENABLED and settings.AI_FALLBACK_PROVIDER not in active_providers:
+            active_providers.append(settings.AI_FALLBACK_PROVIDER)
+        active_statuses = [health_by_provider[name]["status"] for name in active_providers]
+        if all(status == "healthy" for status in active_statuses):
+            overall_status = "healthy"
+        elif any(status == "healthy" for status in active_statuses):
             overall_status = "degraded"
+        else:
+            overall_status = "failing"
+        health_summary = " | ".join(
+            f"{name}: {result['status']}" for name, result in health_by_provider.items()
+        )
 
         return EngineHealth(
             status=overall_status,
-            message=f"Gemini: {gemini_health['status']} | Qwen: {qwen_health['status']}",
-            details={
-                "gemini": gemini_health,
-                "qwen": qwen_health,
-            },
+            message=health_summary,
+            details=health_by_provider,
         )
 
     def explain(self, result_id: str) -> EngineExplanation:
@@ -538,7 +588,11 @@ class AIProviderEngine(BaseEngine):
             factors=[
                 {
                     "name": "Routing Decision",
-                    "description": "Primary calls route to Gemini; technical (429/500/503/timeout) or schema failures failover to Qwen.",
+                    "description": (
+                        f"Primary calls route to {settings.AI_PRIMARY_PROVIDER}; technical "
+                        f"(429/500/503/timeout) or schema failures fail over to "
+                        f"{settings.AI_FALLBACK_PROVIDER}."
+                    ),
                 },
                 {
                     "name": "Factual Integrity Invariant",

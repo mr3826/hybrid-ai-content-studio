@@ -992,7 +992,7 @@ export const translations: Record<Locale, Translations> = {
     },
     ai: {
       title: "AI Provider Studio",
-      subtitle: "Gemini primary, Qwen fallback, mock adapters, telemetry & cost tracking.",
+      subtitle: "Gemini, Qwen, OpenAI, and mock adapters with telemetry & cost tracking.",
       playground: "Playground",
       telemetry: "Telemetry & Logs",
       architecture: "Architecture",

@@ -142,7 +142,7 @@ def _limited_text(value: Any, limit: int = 2400) -> str:
 
 def _raise_generation_http_error(exc: ScriptGenerationError) -> None:
     message = str(exc)
-    for secret in (settings.GEMINI_API_KEY, settings.QWEN_API_KEY):
+    for secret in (settings.GEMINI_API_KEY, settings.QWEN_API_KEY, settings.OPENAI_API_KEY):
         if secret:
             message = message.replace(secret, "[REDACTED]")
     lower = message.casefold()

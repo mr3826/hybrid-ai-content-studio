@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from typing import Any, List, Optional, Union
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     QWEN_API_KEY: Optional[str] = None
     QWEN_API_BASE: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
     QWEN_MODEL: str = "qwen-plus"
+    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_MODEL: str = "gpt-6-luna"
+    OPENAI_PROMPT_COST_PER_MILLION: Optional[float] = Field(default=None, ge=0.0)
+    OPENAI_COMPLETION_COST_PER_MILLION: Optional[float] = Field(default=None, ge=0.0)
     AI_PRIMARY_PROVIDER: str = "gemini"
     AI_FALLBACK_PROVIDER: str = "qwen"
     AI_FALLBACK_ENABLED: bool = True
@@ -54,6 +58,10 @@ class Settings(BaseSettings):
                 values["GEMINI_API_KEY"] = os.getenv("GEMINI_KEY") or os.getenv("GOOGLE_API_KEY")
             if not values.get("QWEN_API_KEY"):
                 values["QWEN_API_KEY"] = os.getenv("QWEN_API_KEY")
+            if not values.get("OPENAI_API_KEY"):
+                values["OPENAI_API_KEY"] = (
+                    os.getenv("OPENAI_COTENT_STUDIO") or os.getenv("OPENAI_API_KEY")
+                )
         return values
 
     # Manual Publishing Platform Default URLs
