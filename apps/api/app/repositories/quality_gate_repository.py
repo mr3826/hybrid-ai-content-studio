@@ -101,6 +101,7 @@ class QualityGateRepository:
         item = item_res.scalar_one_or_none()
         if item:
             item.status = "FINAL_APPROVED"
+            item.updated_at = now
 
         # Update ScriptDraft status
         if audit.script_id:
@@ -112,6 +113,7 @@ class QualityGateRepository:
                 script.is_approved = True
                 script.approved_at = now
                 script.approved_by = approved_by
+                script.updated_at = now
 
         await self.session.commit()
         await self.session.refresh(audit)

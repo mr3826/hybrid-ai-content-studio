@@ -118,6 +118,17 @@ async def test_full_export_and_publishing_flow(client: AsyncClient):
     assert check_item.status_code == 200
     assert check_item.json()["status"] == "SCRIPT_APPROVED"
 
+    # 4b. Approve Final Creator Quality Gate (mandatory invariant before export)
+    qg_eval_res = await client.post(f"/api/v1/quality-gate/evaluate/{item_id}")
+    assert qg_eval_res.status_code == 200
+
+    qg_app_res = await client.post(
+        f"/api/v1/quality-gate/approve/{item_id}",
+        json={"approved_by": "Test Creator", "notes": "Approved for export."},
+    )
+    assert qg_app_res.status_code == 200
+    assert qg_app_res.json()["is_approved"] is True
+
     # 5. Trigger Export Package generation
     exp_res = await client.post(f"/api/v1/export/{item_id}")
     assert exp_res.status_code == 200
@@ -225,3 +236,196 @@ async def test_full_export_and_publishing_flow(client: AsyncClient):
     assert len(matching) == 1
     assert matching[0]["status"] == "PUBLISHED"
     assert matching[0]["platform_statuses"]["youtube"] == "PUBLISHED"
+
+
+@pytest.mark.asyncio
+async def test_export_gate_blocks_without_qc_audit_or_unapproved(client: AsyncClient):
+    """Test that even if a script is approved, export is rejected if QC audit is missing or unapproved."""
+    test_id = uuid.uuid4().hex[:6]
+
+    # Create family and item
+    fam = (await client.post(
+        "/api/v1/content-families",
+        json={"title": f"QC Gate Family {test_id}", "content_pillar": "Security", "original_value_type": "benchmark"},
+    )).json()
+    item = (await client.post(
+        f"/api/v1/content-families/{fam['id']}/items",
+        json={
+            "format": "short_vertical",
+            "platform_target": "youtube",
+            "working_title": f"QC Gate Test {test_id}",
+            "angle": "Empirical testing with zero cloud API dependencies.",
+            "hook_type": "bold_claim",
+            "original_value_connection": "Local benchmark scripts and verified measurements.",
+            "viewer_value": "Step by step command tutorial.",
+        },
+    )).json()
+
+    # Generate script and approve script only
+    script = (await client.post("/api/v1/scripts/generate", json={"content_item_id": item["id"]})).json()
+    await client.post(f"/api/v1/scripts/{script['id']}/approve", json={"notes": "Script approved"})
+
+    # 1. Attempt export without running QC audit -> rejected 422
+    exp_res1 = await client.post(f"/api/v1/export/{item['id']}")
+    assert exp_res1.status_code == 422
+    assert "No final quality audit found" in exp_res1.json()["detail"]
+
+    # 2. Run QC audit evaluation (leaves status as PENDING / unapproved)
+    eval_res = await client.post(f"/api/v1/quality-gate/evaluate/{item['id']}")
+    assert eval_res.status_code == 200
+    assert eval_res.json()["is_approved"] is False
+
+    # Attempt export with unapproved QC audit -> rejected 422
+    exp_res2 = await client.post(f"/api/v1/export/{item['id']}")
+    assert exp_res2.status_code == 422
+    assert "Final Quality Gate Block" in exp_res2.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_export_gate_blocks_stale_qc_audit_after_script_modified(client: AsyncClient):
+    """Test that modifying a script after QC audit approval invalidates authorization (stale audit)."""
+    import asyncio
+    test_id = uuid.uuid4().hex[:6]
+
+    fam = (await client.post(
+        "/api/v1/content-families",
+        json={"title": f"Stale QC Family {test_id}", "content_pillar": "Quality", "original_value_type": "benchmark"},
+    )).json()
+    item = (await client.post(
+        f"/api/v1/content-families/{fam['id']}/items",
+        json={
+            "format": "short_vertical",
+            "platform_target": "youtube",
+            "working_title": f"Stale QC Item {test_id}",
+            "angle": "Empirical testing with zero cloud API dependencies.",
+            "hook_type": "bold_claim",
+            "original_value_connection": "Local benchmark scripts and verified measurements.",
+            "viewer_value": "Step by step command tutorial.",
+        },
+    )).json()
+
+    # Generate and approve script
+    script = (await client.post("/api/v1/scripts/generate", json={"content_item_id": item["id"]})).json()
+    await client.post(f"/api/v1/scripts/{script['id']}/approve", json={"notes": "Script approved"})
+
+    # Evaluate and approve QC audit
+    await client.post(f"/api/v1/quality-gate/evaluate/{item['id']}")
+    app_res = await client.post(
+        f"/api/v1/quality-gate/approve/{item['id']}",
+        json={"approved_by": "Lead Editor", "notes": "Approved"},
+    )
+    assert app_res.status_code == 200
+
+    # Ensure a measurable timestamp progression beyond tolerance
+    await asyncio.sleep(1.1)
+
+    # Modify the script (e.g., section refinement or update)
+    sec_id = script["sections"][0]["id"]
+    refine_res = await client.post(
+        f"/api/v1/scripts/{script['id']}/sections/{sec_id}/refine",
+        json={"refinement_type": "shorten", "guidance": "Make hook punchier."},
+    )
+    assert refine_res.status_code == 200
+
+    # Attempt export -> must be rejected because script was modified after approval
+    exp_res = await client.post(f"/api/v1/export/{item['id']}")
+    assert exp_res.status_code == 422
+    assert "Final Quality Gate Stale Block" in exp_res.json()["detail"]
+    assert "modified after final quality gate approval" in exp_res.json()["detail"]
+
+    # Re-evaluating and re-approving QC audit restores ability to export
+    await client.post(f"/api/v1/quality-gate/evaluate/{item['id']}")
+    reapp_res = await client.post(
+        f"/api/v1/quality-gate/approve/{item['id']}",
+        json={"approved_by": "Lead Editor", "notes": "Re-approved modified content"},
+    )
+    assert reapp_res.status_code == 200
+
+    exp_res_ok = await client.post(f"/api/v1/export/{item['id']}")
+    assert exp_res_ok.status_code == 200
+    assert exp_res_ok.json()["content_item_id"] == item["id"]
+
+
+@pytest.mark.asyncio
+async def test_export_gate_blocks_stale_qc_audit_on_new_script_draft(client: AsyncClient):
+    """Test that generating a new script draft supersedes the previous QC audit."""
+    test_id = uuid.uuid4().hex[:6]
+
+    fam = (await client.post(
+        "/api/v1/content-families",
+        json={"title": f"New Script QC Family {test_id}", "content_pillar": "Core", "original_value_type": "benchmark"},
+    )).json()
+    item = (await client.post(
+        f"/api/v1/content-families/{fam['id']}/items",
+        json={
+            "format": "short_vertical",
+            "platform_target": "youtube",
+            "working_title": f"New Script QC Item {test_id}",
+            "angle": "Empirical testing with zero cloud API dependencies.",
+            "hook_type": "bold_claim",
+            "original_value_connection": "Local benchmark scripts and verified measurements.",
+            "viewer_value": "Step by step command tutorial.",
+        },
+    )).json()
+
+    # Draft 1
+    script1 = (await client.post("/api/v1/scripts/generate", json={"content_item_id": item["id"]})).json()
+    await client.post(f"/api/v1/scripts/{script1['id']}/approve", json={"notes": "Script 1 approved"})
+    await client.post(f"/api/v1/quality-gate/evaluate/{item['id']}")
+    await client.post(f"/api/v1/quality-gate/approve/{item['id']}", json={"approved_by": "Creator"})
+
+    # Draft 2 generated for same item (creates new active script draft)
+    script2 = (await client.post("/api/v1/scripts/generate", json={"content_item_id": item["id"]})).json()
+    assert script2["id"] != script1["id"]
+    await client.post(f"/api/v1/scripts/{script2['id']}/approve", json={"notes": "Script 2 approved"})
+
+    # Export must be blocked because audit was for script 1, not script 2
+    exp_res = await client.post(f"/api/v1/export/{item['id']}")
+    assert exp_res.status_code == 422
+    assert "Final Quality Gate Stale Block" in exp_res.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_repeated_export_requests(client: AsyncClient):
+    """Test that repeated export requests on an approved item succeed and update the package."""
+    test_id = uuid.uuid4().hex[:6]
+
+    fam = (await client.post(
+        "/api/v1/content-families",
+        json={"title": f"Repeat Export Family {test_id}", "content_pillar": "Core", "original_value_type": "benchmark"},
+    )).json()
+    item = (await client.post(
+        f"/api/v1/content-families/{fam['id']}/items",
+        json={
+            "format": "short_vertical",
+            "platform_target": "youtube",
+            "working_title": f"Repeat Export Item {test_id}",
+            "angle": "Empirical testing with zero cloud API dependencies.",
+            "hook_type": "bold_claim",
+            "original_value_connection": "Local benchmark scripts and verified measurements.",
+            "viewer_value": "Step by step command tutorial.",
+        },
+    )).json()
+
+    script = (await client.post("/api/v1/scripts/generate", json={"content_item_id": item["id"]})).json()
+    await client.post(f"/api/v1/scripts/{script['id']}/approve", json={"notes": "Approved"})
+    await client.post(f"/api/v1/quality-gate/evaluate/{item['id']}")
+    await client.post(f"/api/v1/quality-gate/approve/{item['id']}", json={"approved_by": "Creator"})
+
+    # First export
+    res1 = await client.post(f"/api/v1/export/{item['id']}")
+    assert res1.status_code == 200
+    pkg1 = res1.json()
+
+    # Repeated export
+    res2 = await client.post(f"/api/v1/export/{item['id']}")
+    assert res2.status_code == 200
+    pkg2 = res2.json()
+
+    assert pkg1["content_item_id"] == pkg2["content_item_id"]
+    assert pkg1["id"] == pkg2["id"]
+    assert pkg1["package_slug"] == pkg2["package_slug"]
+    assert len(pkg2["checksum"]) == 64
+    assert pkg1["files"] == pkg2["files"]
+
+

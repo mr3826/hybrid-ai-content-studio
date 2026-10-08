@@ -2,7 +2,7 @@ import io
 import logging
 import os
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -25,6 +25,7 @@ from app.models.research import ResearchPacket
 from app.models.script import ScriptDraft, ScriptSection
 from app.repositories.export_repository import ExportRepository
 from app.repositories.publishing_repository import PublishingRepository
+from app.repositories.quality_gate_repository import QualityGateRepository
 from app.schemas.export import (
     ExportPackageRead,
     PlatformPublicationRead,
@@ -58,7 +59,9 @@ async def create_export_package(
     """Generates a complete offline export package for an approved content item.
     
     Human Gate Enforcement:
-    Content item MUST have an approved script (is_approved=True) before export package is generated.
+    1. Content item MUST have an approved script (is_approved=True) before export package is generated.
+    2. Content item MUST have a valid, approved Final Quality Gate audit (status='FINAL_APPROVED', is_approved=True).
+    3. The quality gate audit MUST be fresh and match the active script version (not stale/superseded).
     """
     export_repo = ExportRepository(db)
     pub_repo = PublishingRepository(db)
@@ -90,7 +93,7 @@ async def create_export_package(
         .order_by(ScriptDraft.created_at.desc())
     )
     script_res = await db.execute(script_stmt)
-    script = script_res.scalar_one_or_none()
+    script = script_res.scalars().first()
 
     if not script:
         raise HTTPException(
@@ -107,7 +110,70 @@ async def create_export_package(
             ),
         )
 
-    # 3. Fetch BrandProfile
+    # 3. Check Final Creator Quality Gate Audit & Freshness
+    qg_repo = QualityGateRepository(db)
+    audit = await qg_repo.get_audit_by_item(item.id)
+
+    if not audit:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Final Quality Gate Block: No final quality audit found for this content item. "
+                "Run the 9-dimension quality gate evaluation and obtain final human approval before exporting."
+            ),
+        )
+
+    if not audit.is_approved or audit.status != "FINAL_APPROVED":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Final Quality Gate Block: Quality audit status is '{audit.status}' (approved={audit.is_approved}). "
+                "Export package generation requires an approved final quality gate (status=FINAL_APPROVED)."
+            ),
+        )
+
+    # Stale Audit Check: Ensure the approved audit belongs to the current script version
+    if audit.script_id and script.id and audit.script_id != script.id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Final Quality Gate Stale Block: Quality audit was approved for script '{audit.script_id}', "
+                f"but current active script is '{script.id}'. Re-run quality gate evaluation and re-approve."
+            ),
+        )
+
+    # Stale Audit Check: Ensure script content was not modified after the quality gate audit was approved
+    if audit.approved_at:
+        audit_approved_at = (
+            audit.approved_at if audit.approved_at.tzinfo else audit.approved_at.replace(tzinfo=timezone.utc)
+        )
+        tolerance = timedelta(seconds=1)
+        if script.updated_at:
+            script_updated_at = (
+                script.updated_at if script.updated_at.tzinfo else script.updated_at.replace(tzinfo=timezone.utc)
+            )
+            if script_updated_at > (audit_approved_at + tolerance):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        "Final Quality Gate Stale Block: Script was modified after final quality gate approval. "
+                        "Re-evaluate and re-approve the quality gate audit before exporting."
+                    ),
+                )
+        if script.created_at:
+            script_created_at = (
+                script.created_at if script.created_at.tzinfo else script.created_at.replace(tzinfo=timezone.utc)
+            )
+            if script_created_at > (audit_approved_at + tolerance):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        "Final Quality Gate Stale Block: A new script draft was created after final quality gate approval. "
+                        "Re-evaluate and re-approve the quality gate audit before exporting."
+                    ),
+                )
+
+    # 4. Fetch BrandProfile
     brand_res = await db.execute(select(BrandProfile).where(BrandProfile.id == SINGLETON_BRAND_ID))
     brand = brand_res.scalar_one_or_none()
     brand_name = brand.brand_name if brand else "Fresh Local Content"

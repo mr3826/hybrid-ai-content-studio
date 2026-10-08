@@ -37,8 +37,42 @@ class QwenAdapter(BaseAIAdapter):
             headers["Authorization"] = f"Bearer {self.api_key}"
         return headers
 
+    def _sanitize_error(self, message: str) -> str:
+        if not message:
+            return ""
+        sanitized = message
+        if self.api_key:
+            sanitized = sanitized.replace(self.api_key, "[REDACTED]")
+        return sanitized
+
     async def generate_text(self, request: TextGenerationRequest) -> AIResponse:
         start_time = time.perf_counter()
+
+        if request.simulate_failure == "rate_limit":
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            return AIResponse(
+                text="",
+                provider=self.provider_id,
+                model=self.default_model,
+                task=request.task,
+                prompt_version=request.prompt_version,
+                success=False,
+                error_message="Qwen HTTP 429: Too Many Requests (Rate limit exceeded).",
+                latency_ms=round(latency_ms, 2),
+            )
+
+        if request.simulate_failure in ("server_error", "timeout"):
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            return AIResponse(
+                text="",
+                provider=self.provider_id,
+                model=self.default_model,
+                task=request.task,
+                prompt_version=request.prompt_version,
+                success=False,
+                error_message="Qwen HTTP 503: Service Unavailable (Model overloaded).",
+                latency_ms=round(latency_ms, 2),
+            )
 
         if not self.api_key:
             latency_ms = (time.perf_counter() - start_time) * 1000
@@ -74,6 +108,7 @@ class QwenAdapter(BaseAIAdapter):
             latency_ms = (time.perf_counter() - start_time) * 1000
 
             if resp.status_code != 200:
+                raw_err = f"Qwen HTTP {resp.status_code}: {resp.text[:200]}"
                 return AIResponse(
                     text="",
                     provider=self.provider_id,
@@ -81,7 +116,7 @@ class QwenAdapter(BaseAIAdapter):
                     task=request.task,
                     prompt_version=request.prompt_version,
                     success=False,
-                    error_message=f"Qwen HTTP {resp.status_code}: {resp.text[:200]}",
+                    error_message=self._sanitize_error(raw_err),
                     latency_ms=round(latency_ms, 2),
                 )
 
@@ -122,6 +157,7 @@ class QwenAdapter(BaseAIAdapter):
             )
         except Exception as e:
             latency_ms = (time.perf_counter() - start_time) * 1000
+            raw_err = f"Qwen connection error: {str(e)}"
             return AIResponse(
                 text="",
                 provider=self.provider_id,
@@ -129,12 +165,40 @@ class QwenAdapter(BaseAIAdapter):
                 task=request.task,
                 prompt_version=request.prompt_version,
                 success=False,
-                error_message=f"Qwen connection error: {str(e)}",
+                error_message=self._sanitize_error(raw_err),
                 latency_ms=round(latency_ms, 2),
             )
 
     async def generate_structured(self, request: StructuredGenerationRequest) -> AIResponse:
         start_time = time.perf_counter()
+
+        if request.simulate_failure in ("server_error", "rate_limit"):
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            err_code = "429" if request.simulate_failure == "rate_limit" else "503"
+            return AIResponse(
+                text="",
+                provider=self.provider_id,
+                model=self.default_model,
+                task=request.task,
+                prompt_version=request.prompt_version,
+                success=False,
+                error_message=f"Qwen HTTP {err_code}: Technical failure ({request.simulate_failure})",
+                latency_ms=round(latency_ms, 2),
+            )
+
+        if request.simulate_failure == "schema_error":
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            return AIResponse(
+                text="```json\n{ malformed: json ",
+                structured_data=None,
+                provider=self.provider_id,
+                model=self.default_model,
+                task=request.task,
+                prompt_version=request.prompt_version,
+                success=False,
+                error_message="Schema parsing error: Malformed JSON output",
+                latency_ms=round(latency_ms, 2),
+            )
 
         if not self.api_key:
             latency_ms = (time.perf_counter() - start_time) * 1000
@@ -178,6 +242,7 @@ class QwenAdapter(BaseAIAdapter):
             latency_ms = (time.perf_counter() - start_time) * 1000
 
             if resp.status_code != 200:
+                raw_err = f"Qwen HTTP {resp.status_code}: {resp.text[:200]}"
                 return AIResponse(
                     text="",
                     provider=self.provider_id,
@@ -185,7 +250,7 @@ class QwenAdapter(BaseAIAdapter):
                     task=request.task,
                     prompt_version=request.prompt_version,
                     success=False,
-                    error_message=f"Qwen HTTP {resp.status_code}: {resp.text[:200]}",
+                    error_message=self._sanitize_error(raw_err),
                     latency_ms=round(latency_ms, 2),
                 )
 
@@ -252,6 +317,7 @@ class QwenAdapter(BaseAIAdapter):
             )
         except Exception as e:
             latency_ms = (time.perf_counter() - start_time) * 1000
+            raw_err = f"Qwen connection error: {str(e)}"
             return AIResponse(
                 text="",
                 provider=self.provider_id,
@@ -259,7 +325,7 @@ class QwenAdapter(BaseAIAdapter):
                 task=request.task,
                 prompt_version=request.prompt_version,
                 success=False,
-                error_message=f"Qwen connection error: {str(e)}",
+                error_message=self._sanitize_error(raw_err),
                 latency_ms=round(latency_ms, 2),
             )
 
