@@ -19,6 +19,7 @@ from app.models.brand import BrandProfile, SINGLETON_BRAND_ID
 from app.models.content_family import ContentFamily, ContentItem
 from app.models.evidence import Claim, EvidenceSource
 from app.models.export import ExportPackage, PlatformPublication
+from app.models.media import MediaPackage
 from app.models.niche import NicheProfile, SINGLETON_NICHE_ID
 from app.models.platform import PlatformSetting
 from app.models.research import ResearchPacket
@@ -171,6 +172,40 @@ async def create_export_package(
                         "Re-evaluate and re-approve the quality gate audit before exporting."
                     ),
                 )
+
+    # A prior audit cannot authorize an export after the current production media has failed or become mock.
+    media_stmt = (
+        select(MediaPackage)
+        .where(MediaPackage.script_id == script.id)
+        .order_by(MediaPackage.updated_at.desc())
+    )
+    media_res = await db.execute(media_stmt)
+    media_package = media_res.scalars().first()
+    if media_package:
+        media_quality = media_package.quality_checks or {}
+        production_media_ready = (
+            media_package.status == "READY"
+            and media_package.audio_path
+            and media_package.video_path
+            and media_quality.get("passed") is True
+            and media_quality.get("production_eligible") is True
+            and media_quality.get("ffprobe_verified") is True
+            and media_quality.get("mock_audio") is not True
+            and media_quality.get("mock_visual_assets") is not True
+            and (
+                media_quality.get("subtitles_requested") is not True
+                or media_quality.get("subtitles_burned") is True
+            )
+        )
+        if not production_media_ready:
+            issues = "; ".join(media_quality.get("issues", []))
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "Export blocked: current media package is failed, mock, or lacks verified production audio/video. "
+                    + (issues or "Re-render and pass Media QC before export.")
+                ),
+            )
 
     # 4. Fetch BrandProfile
     brand_res = await db.execute(select(BrandProfile).where(BrandProfile.id == SINGLETON_BRAND_ID))

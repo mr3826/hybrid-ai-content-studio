@@ -357,31 +357,65 @@ class QualityGateEvaluator:
                 severity="medium",
             ))
         else:
-            status_pkg = getattr(media_pkg, "status", "ready").lower()
-            if status_pkg in ("failed",):
+            status_pkg = str(getattr(media_pkg, "status", "")).lower()
+            quality = getattr(media_pkg, "quality_checks", None) or {}
+            if status_pkg in {"failed", "mock"}:
                 score = 40.0
                 status = DimensionStatus.BLOCKED
-                details.append("Media rendering failed. Check audio synthesis or FFmpeg logs.")
+                details.append(
+                    "Media output is failed or explicitly labeled mock; it cannot pass production QC. "
+                    + "; ".join(quality.get("issues", []))
+                )
                 routes.append(CorrectionRoute(
                     action_type="rerender_segment",
-                    title="Re-render Failed Media",
-                    description="Re-run audio synthesis and FFmpeg composition in Media Studio.",
+                    title="Create Production Media",
+                    description="Use an installed system voice, verified scene assets, and a successful FFmpeg/FFprobe render.",
+                    target_route="/media-studio",
+                    severity="high",
+                ))
+            elif (
+                status_pkg != "ready"
+                or not getattr(media_pkg, "audio_path", None)
+                or not getattr(media_pkg, "video_path", None)
+                or quality.get("passed") is not True
+                or quality.get("production_eligible") is not True
+                or quality.get("ffprobe_verified") is not True
+                or quality.get("mock_audio") is True
+                or quality.get("mock_visual_assets") is True
+            ):
+                score = 40.0
+                status = DimensionStatus.BLOCKED
+                issues = quality.get("issues", [])
+                details.append(
+                    "Media package is incomplete or lacks successful production verification. "
+                    + ("; ".join(issues) if issues else "Render it with real narration and visuals before final approval.")
+                )
+                routes.append(CorrectionRoute(
+                    action_type="rerender_segment",
+                    title="Complete Production Media",
+                    description="Generate real narration and scene visuals, then verify the final MP4 in Media Studio.",
                     target_route="/media-studio",
                     severity="high",
                 ))
             else:
-                details.append(f"Media package active ({status_pkg.upper()}). 44.1kHz audio standard confirmed.")
-                if hasattr(media_pkg, "subtitle_path") and media_pkg.subtitle_path:
-                    details.append("Sub-second timed captions synchronized (.SRT/.VTT).")
-                if hasattr(media_pkg, "video_path") and media_pkg.video_path:
-                    details.append("FFmpeg video composition rendered.")
+                details.append(
+                    f"Production media verified ({quality.get('video_codec')}/{quality.get('audio_codec')}, "
+                    f"{quality.get('resolution')}, {quality.get('video_duration_sec')}s); FFprobe confirmed both streams."
+                )
+                if quality.get("subtitles_requested"):
+                    if quality.get("subtitles_burned") is True:
+                        details.append("Requested captions were burned into the verified video.")
+                    else:
+                        score = 40.0
+                        status = DimensionStatus.BLOCKED
+                        details.append("Required captions are missing from the video.")
 
         return QualityDimension(
             id="media_qc",
             name="Technical Media QC (Audio/Captions/FFmpeg)",
             score=score,
             status=status,
-            summary="Technical media pass. 44.1kHz speech and caption sync." if status != DimensionStatus.BLOCKED else "Media render failed.",
+            summary="Production media verification passed." if status == DimensionStatus.PASSED else "Production media verification is incomplete or failed.",
             metrics={"has_package": bool(media_pkg), "package_status": getattr(media_pkg, "status", "none") if media_pkg else "none"},
             details=details,
         ), routes

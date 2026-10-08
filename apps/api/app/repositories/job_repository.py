@@ -99,6 +99,7 @@ class JobRepository(BaseRepository[StudioJob]):
         self,
         job_id: str,
         error_message: str,
+        result_data: Optional[Dict[str, Any]] = None,
     ) -> Optional[StudioJob]:
         job = await self.get_job(job_id)
         if not job:
@@ -106,6 +107,8 @@ class JobRepository(BaseRepository[StudioJob]):
         job.status = "failed"
         job.finished_at = datetime.now(timezone.utc)
         job.error = error_message
+        if result_data is not None:
+            job.result = result_data
         await self.session.commit()
         await self.session.refresh(job)
         return job

@@ -16,20 +16,36 @@ validating all 24 creator capabilities and 10 non-negotiable architectural invar
 """
 
 import hashlib
+import binascii
 import json
+import struct
 import uuid
+import zlib
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from pathlib import Path
 
+from app.api.v1 import media as media_api
 from app.models.niche import NicheProfile, SINGLETON_NICHE_ID
 from app.models.brand import BrandProfile, SINGLETON_BRAND_ID
 from app.engines.core.registry import engine_registry
 
 
+def _write_media_fixture_png(path: Path, color: tuple[int, int, int]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    width, height = 120, 80
+    def chunk(kind: bytes, payload: bytes) -> bytes:
+        return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", binascii.crc32(kind + payload) & 0xFFFFFFFF)
+    header = struct.pack(">2I5B", width, height, 8, 2, 0, 0, 0)
+    pixels = (b"\x00" + bytes(color) * width) * height
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(pixels)) + chunk(b"IEND", b""))
+    return path
+
+
 @pytest.mark.asyncio
-async def test_e2e_24_step_creator_lifecycle(client: AsyncClient, db_session: AsyncSession):
+async def test_e2e_24_step_creator_lifecycle(client: AsyncClient, db_session: AsyncSession, monkeypatch, tmp_path):
     """
     Executes a comprehensive, uninterrupted 24-step creator workflow through the API,
     validating the complete V1 Definition of Done (Sections 48 & 69).
@@ -370,6 +386,25 @@ async def test_e2e_24_step_creator_lifecycle(client: AsyncClient, db_session: As
     scenes = decompose_res.json()
     assert len(scenes) >= 3
 
+    # Use topic-specific, test-owned local visuals and keep all generated media in pytest's temp directory.
+    media_assets = tmp_path / "assets"
+    media_assets.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(media_api.engine.audio_synthesizer, "output_dir", media_assets / "audio")
+    monkeypatch.setattr(media_api.engine.subtitle_adapter, "output_dir", media_assets / "subtitles")
+    monkeypatch.setattr(media_api.engine.ffmpeg_adapter, "output_dir", tmp_path / "video")
+    monkeypatch.setattr(media_api.engine.ffmpeg_adapter, "asset_root", media_assets)
+    media_api.engine.audio_synthesizer.output_dir.mkdir(parents=True, exist_ok=True)
+    media_api.engine.subtitle_adapter.output_dir.mkdir(parents=True, exist_ok=True)
+    media_api.engine.ffmpeg_adapter.output_dir.mkdir(parents=True, exist_ok=True)
+    for index, scene in enumerate(scenes):
+        color = ((195, 45, 35), (30, 145, 75), (40, 75, 195))[index % 3]
+        image = _write_media_fixture_png(media_assets / "topic-scenes" / f"{run_id}-{index}.png", color)
+        visual_res = await client.put(
+            f"/api/v1/scenes/{scene['id']}",
+            json={"visual_source": str(image), "status": "READY"},
+        )
+        assert visual_res.status_code == 200, visual_res.text
+
     # =========================================================================
     # Step 14: Asset Rights Registry & License Classification
     # =========================================================================
@@ -396,13 +431,17 @@ async def test_e2e_24_step_creator_lifecycle(client: AsyncClient, db_session: As
     # =========================================================================
     # Step 15: Local Media Generation (Voice Audio & Timed Subtitles)
     # =========================================================================
+    voice_catalog = (await client.get("/api/v1/media/voices")).json()
+    if not voice_catalog["available"]:
+        pytest.skip("The full production media lifecycle requires an installed offline Windows SAPI5 voice.")
     voice_res = await client.post(
         f"/api/v1/media/voice/{script_id}",
-        json={"voice_id": "en-US-Studio-Standard", "speed": 1.0},
+        json={"voice_id": voice_catalog["default_voice_id"], "speed": 1.0, "mock_mode": False},
     )
-    assert voice_res.status_code == 200
+    assert voice_res.status_code == 200, voice_res.text
     media_pkg = voice_res.json()
-    assert media_pkg["status"] == "READY"
+    assert media_pkg["status"] == "SYNTHESIZED"
+    assert all(track["is_mock"] is False for track in media_pkg["voice_tracks"])
     assert media_pkg["audio_path"] is not None
 
     sub_res = await client.post(
@@ -414,10 +453,12 @@ async def test_e2e_24_step_creator_lifecycle(client: AsyncClient, db_session: As
 
     render_res = await client.post(
         f"/api/v1/media/render/{script_id}",
-        json={"resolution": "1080x1920", "fps": 30},
+        json={"resolution": "1080x1920", "fps": 30, "burn_subtitles": True},
     )
     assert render_res.status_code == 200
     assert render_res.json()["status"] == "READY"
+    assert render_res.json()["quality_checks"]["ffprobe_verified"] is True
+    assert render_res.json()["quality_checks"]["subtitles_burned"] is True
 
     # =========================================================================
     # Step 16: 9-Dimension Creator Quality Gate Evaluation & Human Sign-off

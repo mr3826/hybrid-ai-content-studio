@@ -17,6 +17,7 @@ from app.engines.core.base import (
 from app.engines.media.adapters import (
     FFmpegMediaAdapter,
     LocalAudioSynthesizer,
+    MediaPipelineError,
     SubtitleAdapter,
 )
 from app.engines.media.contracts import (
@@ -53,15 +54,29 @@ class MediaEngine(BaseEngine):
     def health(self) -> EngineHealth:
         has_rules = bool(self.rules)
         has_ffmpeg = self.ffmpeg_adapter.has_ffmpeg()
+        has_ffprobe = self.ffmpeg_adapter.has_ffprobe()
+        voice_catalog = self.audio_synthesizer.get_voice_catalog()
+        ready = has_rules and has_ffmpeg and has_ffprobe and bool(voice_catalog.get("available"))
         return EngineHealth(
             engine_id=self.id,
-            status="healthy" if has_rules else "degraded",
-            message=f"Media Engine active (FFmpeg: {'available' if has_ffmpeg else 'fallback deterministic mode'})",
+            status="healthy" if ready else "degraded",
+            message=(
+                "Media Engine production toolchain available."
+                if ready
+                else "Media Engine is missing one or more production tools; render/synthesis requests will fail closed."
+            ),
             details={
                 "has_rules": has_rules,
                 "has_ffmpeg": has_ffmpeg,
+                "has_ffprobe": has_ffprobe,
                 "ffmpeg_path": self.ffmpeg_adapter.ffmpeg_path,
                 "ffmpeg_version": self.ffmpeg_adapter.get_ffmpeg_version(),
+                "ffprobe_path": self.ffmpeg_adapter.ffprobe_path,
+                "ffprobe_version": self.ffmpeg_adapter.get_ffprobe_version(),
+                "sapi5_available": bool(voice_catalog.get("available")),
+                "sapi5_voices": voice_catalog.get("voices", []),
+                "supported_languages": voice_catalog.get("supported_languages", []),
+                "unavailable_languages": voice_catalog.get("unavailable_languages", []),
                 "tts_mock_mode": settings.TTS_MOCK_MODE,
                 "audio_dir": str(self.audio_synthesizer.output_dir),
                 "subtitles_dir": str(self.subtitle_adapter.output_dir),
@@ -81,7 +96,7 @@ class MediaEngine(BaseEngine):
         pkg_id = package_id or str(uuid.uuid4())
 
         tracks = []
-        for s in scenes:
+        for s in sorted(scenes, key=lambda scene: scene.scene_order):
             track = self.audio_synthesizer.synthesize_scene_audio(
                 scene_id=s.id,
                 narration=s.narration,
@@ -97,6 +112,8 @@ class MediaEngine(BaseEngine):
             silence_gap_sec=silence_gap,
             sample_rate=cfg.sample_rate,
         )
+        if total_duration <= 0:
+            raise MediaPipelineError("Narration synthesis produced an empty master audio track.", stage="voice")
 
         return VoiceSynthesisOutput(
             package_id=pkg_id,
@@ -104,6 +121,7 @@ class MediaEngine(BaseEngine):
             tracks=tracks,
             master_audio_path=master_path,
             total_duration_sec=total_duration,
+            is_mock=any(track.is_mock for track in tracks),
         )
 
     def generate_subtitles(
@@ -132,6 +150,8 @@ class MediaEngine(BaseEngine):
         total_duration_sec: float,
         config: Optional[MediaRenderConfigRequest] = None,
         subtitle_path: Optional[str] = None,
+        audio_is_mock: bool = False,
+        subtitle_timing_method: Optional[str] = None,
     ) -> MediaRenderOutput:
         """Assembles scenes and master audio into final video composition."""
         cfg = config or MediaRenderConfigRequest()
@@ -143,6 +163,9 @@ class MediaEngine(BaseEngine):
             total_duration_sec=total_duration_sec,
             config=cfg,
             subtitle_path=subtitle_path,
+            audio_is_mock=audio_is_mock,
+            subtitle_timing_method=subtitle_timing_method,
+            silence_gap_sec=float(self.rules.get("voice", {}).get("silence_gap_sec", 0.2)),
         )
 
     async def run(self, context: EngineContext, session=None) -> EngineResult:
@@ -163,6 +186,7 @@ class MediaEngine(BaseEngine):
 
         scenes_raw = context.parameters.get("scenes", [])
         scenes = [SceneMediaInput(**s) if isinstance(s, dict) else s for s in scenes_raw]
+        scenes.sort(key=lambda scene: scene.scene_order)
 
         if not scenes:
             ended_at = datetime.now(timezone.utc)
@@ -176,27 +200,155 @@ class MediaEngine(BaseEngine):
                 summary="No scenes provided for media synthesis",
             )
 
-        # 1. Synthesize voice
-        voice_out = self.synthesize_voice(script_id, scenes)
+        parameters = context.parameters
+        package_id = str(parameters.get("package_id") or uuid.uuid4())
+        action = str(parameters.get("action", "render")).lower()
+        if action not in {"synthesize", "render"}:
+            return self._failure_result(context, started_at, f"Unsupported media action: {action}", package_id)
 
-        # 2. Generate subtitles
-        durations = {t.scene_id: t.duration_sec for t in voice_out.tracks}
-        sub_out = self.generate_subtitles(script_id, scenes, track_durations=durations)
+        try:
+            voice_config = VoiceConfigRequest(**(parameters.get("voice_config") or {}))
+            subtitle_config = SubtitleConfigRequest(**(parameters.get("subtitle_config") or {}))
+            render_config = MediaRenderConfigRequest(**(parameters.get("render_config") or {}))
+            master_audio_path = parameters.get("master_audio_path")
+            voice_tracks: List[Dict[str, Any]] = []
+            track_durations: Dict[str, float] = {
+                str(scene_id): float(duration)
+                for scene_id, duration in (parameters.get("voice_track_durations") or {}).items()
+                if float(duration) > 0
+            }
+            audio_is_mock = bool(parameters.get("audio_is_mock", False))
 
-        # 3. Assemble video
-        burn_subs = context.parameters.get("burn_subtitles", True)
-        render_config = MediaRenderConfigRequest(burn_subtitles=burn_subs)
-        render_out = self.render_media(
-            script_id=script_id,
-            package_id=voice_out.package_id,
-            scenes=scenes,
-            master_audio_path=voice_out.master_audio_path,
-            total_duration_sec=voice_out.total_duration_sec,
-            config=render_config,
-            subtitle_path=sub_out.subtitle_path if burn_subs else None,
-        )
+            if action == "synthesize" or not master_audio_path:
+                voice_out = self.synthesize_voice(
+                    script_id=script_id,
+                    scenes=scenes,
+                    config=voice_config,
+                    package_id=package_id,
+                )
+                master_audio_path = voice_out.master_audio_path
+                track_durations = {track.scene_id: track.duration_sec for track in voice_out.tracks}
+                voice_tracks = [track.model_dump(mode="json") for track in voice_out.tracks]
+                audio_is_mock = voice_out.is_mock
+                total_duration = voice_out.total_duration_sec
+            else:
+                total_duration = float(parameters.get("total_duration_sec") or 0.0)
 
+            for scene in scenes:
+                if scene.id in track_durations:
+                    scene.actual_audio_duration_sec = track_durations[scene.id]
+
+            if action == "synthesize":
+                ended_at = datetime.now(timezone.utc)
+                mock_status = audio_is_mock
+                output = {
+                    "package_id": package_id,
+                    "script_id": script_id,
+                    "status": "MOCK" if mock_status else "SYNTHESIZED",
+                    "total_duration_sec": total_duration,
+                    "audio_path": master_audio_path,
+                    "voice_tracks": voice_tracks,
+                    "audio_is_mock": audio_is_mock,
+                    "quality_report": {"passed": False, "production_eligible": False, "issues": ["Video render has not been completed."]},
+                }
+                return EngineResult(
+                    engine_id=self.id,
+                    engine_version=self.version,
+                    run_id=context.run_id,
+                    started_at=started_at,
+                    ended_at=ended_at,
+                    duration_ms=int((ended_at - started_at).total_seconds() * 1000),
+                    success=not mock_status,
+                    summary="Mock narration generated for isolated testing; not production-ready." if mock_status else f"Generated {len(voice_tracks)} offline SAPI5 narration tracks.",
+                    outputs=[output],
+                    errors=["Mock narration cannot be marked production-ready."] if mock_status else [],
+                )
+
+            if render_config.burn_subtitles:
+                subtitle_path = parameters.get("subtitle_path")
+                if subtitle_path:
+                    subtitle_timing_method = str(parameters.get("subtitle_timing_method") or "not_applicable")
+                else:
+                    sub_out = self.generate_subtitles(
+                        script_id=script_id,
+                        scenes=scenes,
+                        track_durations=track_durations,
+                        config=subtitle_config,
+                    )
+                    subtitle_path = sub_out.subtitle_path
+                    subtitle_timing_method = sub_out.timing_method
+            else:
+                subtitle_path = None
+                subtitle_timing_method = None
+
+            render_out = self.render_media(
+                script_id=script_id,
+                package_id=package_id,
+                scenes=scenes,
+                master_audio_path=str(master_audio_path),
+                total_duration_sec=total_duration,
+                config=render_config,
+                subtitle_path=subtitle_path,
+                audio_is_mock=audio_is_mock,
+                subtitle_timing_method=subtitle_timing_method,
+            )
+            output = {
+                "package_id": package_id,
+                "script_id": script_id,
+                "status": render_out.status,
+                "total_duration_sec": render_out.duration_sec,
+                "audio_path": master_audio_path,
+                "voice_tracks": voice_tracks,
+                "audio_is_mock": audio_is_mock,
+                "subtitle_path": subtitle_path,
+                "subtitle_timing_method": subtitle_timing_method,
+                "video_path": render_out.video_path,
+                "timeline_path": render_out.timeline_path,
+                "quality_report": render_out.quality_report,
+            }
+            ended_at = datetime.now(timezone.utc)
+            production_ready = render_out.quality_report.get("passed") is True and render_out.status == "READY"
+            return EngineResult(
+                engine_id=self.id,
+                engine_version=self.version,
+                run_id=context.run_id,
+                started_at=started_at,
+                ended_at=ended_at,
+                duration_ms=int((ended_at - started_at).total_seconds() * 1000),
+                success=production_ready,
+                summary=(
+                    f"Rendered verified {render_out.resolution} media."
+                    if production_ready
+                    else "A valid mock media artifact was rendered for isolated testing; it is not production-ready."
+                ),
+                outputs=[output],
+                errors=[] if production_ready else list(render_out.quality_report.get("issues", [])),
+            )
+        except MediaPipelineError as exc:
+            return self._failure_result(context, started_at, str(exc), package_id, failed_stage=exc.stage)
+        except Exception as exc:
+            logger.exception("Unexpected media engine failure for script %s", script_id)
+            return self._failure_result(context, started_at, f"Media pipeline failed: {exc}", package_id)
+
+    def _failure_result(
+        self,
+        context: EngineContext,
+        started_at: datetime,
+        message: str,
+        package_id: str,
+        failed_stage: str = "media",
+    ) -> EngineResult:
         ended_at = datetime.now(timezone.utc)
+        output = {
+            "package_id": package_id,
+            "status": "FAILED",
+            "quality_report": {
+                "passed": False,
+                "production_eligible": False,
+                "failed_stage": failed_stage,
+                "issues": [message],
+            },
+        }
         return EngineResult(
             engine_id=self.id,
             engine_version=self.version,
@@ -204,19 +356,10 @@ class MediaEngine(BaseEngine):
             started_at=started_at,
             ended_at=ended_at,
             duration_ms=int((ended_at - started_at).total_seconds() * 1000),
-            success=True,
-            summary=f"Synthesized {len(voice_out.tracks)} voice tracks, {sub_out.cue_count} subtitle cues, and assembled {render_out.resolution} video.",
-            outputs=[
-                {
-                    "package_id": voice_out.package_id,
-                    "script_id": script_id,
-                    "total_duration_sec": voice_out.total_duration_sec,
-                    "audio_path": voice_out.master_audio_path,
-                    "subtitle_path": sub_out.subtitle_path,
-                    "video_path": render_out.video_path,
-                    "quality_report": render_out.quality_report,
-                }
-            ],
+            success=False,
+            summary=message,
+            outputs=[output],
+            errors=[message],
         )
 
     async def dry_run(self, context: EngineContext, session=None) -> EngineResult:
@@ -247,19 +390,19 @@ class MediaEngine(BaseEngine):
         """Provides human-readable explanation of media engine operation."""
         return EngineExplanation(
             result_id=result_id,
-            summary="Media Engine generates local narration WAVs, calculates sub-second subtitle cues, and stitches composition via FFmpeg.",
+            summary="Media Engine uses installed offline SAPI5 voices, measured scene timing, local assets, FFmpeg, and FFprobe verification.",
             factors=[
                 {
-                    "title": "Local Deterministic Synthesis",
-                    "description": "100% offline PCM WAV generation with vocal harmonic modulation.",
+                    "title": "Offline System Speech",
+                    "description": "Uses an installed Windows SAPI5 voice; harmonic audio is labeled mock and cannot pass production QC.",
                 },
                 {
-                    "title": "Sub-second Subtitle Synchronization",
-                    "description": "Word chunk pacing matches scene narration timestamps.",
+                    "title": "Measured Subtitle Timing",
+                    "description": "Scene boundaries use measured narration durations and configured silence gaps; word-level cue timing is a proportional estimate.",
                 },
                 {
                     "title": "FFmpeg Assembly",
-                    "description": "Compiles visual assets + master audio into MP4 container.",
+                    "description": "Composes each ordered scene asset, retains aspect ratio, burns required captions, and verifies codecs/streams/durations with FFprobe.",
                 },
             ],
         )

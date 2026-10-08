@@ -12,9 +12,12 @@ sys.path.insert(0, str(ROOT_DIR))
 from app.core.config import settings
 from app.core.database import check_db_health, AsyncSessionLocal
 from app.repositories.job_repository import JobRepository
+from app.repositories.media_repository import MediaRepository
 from app.engines.core.registry import engine_registry
 from app.engines.core.base import EngineContext
 from app.engines.catalog import register_all_catalog_engines
+from app.models.media import MediaPackage, MediaPackageStatus, SceneVoiceTrack
+from sqlalchemy import select
 
 logging.basicConfig(
     level=settings.LOG_LEVEL,
@@ -76,11 +79,17 @@ class StudioWorker:
                         dry_run=ctx.dry_run,
                         session=session,
                     )
+                    if job.engine_id == "media":
+                        await self._persist_media_result(session, job, result)
                     if result.success:
                         await repo.complete_job(job.id, result_data=result.model_dump(mode="json"))
                         logger.info(f"Job {job.id} completed successfully.")
                     else:
-                        await repo.fail_job(job.id, error_message=result.summary or "Engine execution failed")
+                        await repo.fail_job(
+                            job.id,
+                            error_message=result.summary or "Engine execution failed",
+                            result_data=result.model_dump(mode="json"),
+                        )
                         logger.warning(f"Job {job.id} failed: {result.summary}")
                 else:
                     # Echo / Generic task processing
@@ -89,6 +98,80 @@ class StudioWorker:
             except Exception as exc:
                 logger.error(f"Exception executing job {job.id}: {exc}", exc_info=True)
                 await repo.fail_job(job.id, error_message=str(exc))
+
+    async def _persist_media_result(self, session, job, result):
+        """Persist media engine state before the queue job is completed or failed."""
+        if (job.payload or {}).get("dry_run"):
+            # A simulated health check has no media artifact and must never mutate package state.
+            return
+        parameters = (job.payload or {}).get("parameters", {})
+        package_id = parameters.get("package_id")
+        if not package_id:
+            return
+        stmt = select(MediaPackage).where(MediaPackage.id == package_id)
+        query = await session.execute(stmt)
+        package = query.scalar_one_or_none()
+        if package is None:
+            logger.error("Media worker result references missing package %s", package_id)
+            return
+
+        output = result.outputs[0] if result.outputs else {}
+        if not output.get("status") and not output.get("quality_report"):
+            package.status = MediaPackageStatus.FAILED
+            package.video_path = None
+            package.timeline_path = None
+            package.quality_checks = {
+                "passed": False,
+                "production_eligible": False,
+                "issues": result.errors or ["Media engine returned no verified output."],
+            }
+            await session.commit()
+            return
+        quality = output.get("quality_report") or {
+            "passed": False,
+            "production_eligible": False,
+            "issues": result.errors or [result.summary],
+        }
+        package.status = output.get("status") or (MediaPackageStatus.READY if result.success else MediaPackageStatus.FAILED)
+        if not result.success and package.status not in {MediaPackageStatus.MOCK, MediaPackageStatus.FAILED}:
+            package.status = MediaPackageStatus.FAILED
+        package.audio_path = output.get("audio_path") or package.audio_path
+        package.subtitle_path = output.get("subtitle_path") or package.subtitle_path
+        package.video_path = output.get("video_path")
+        package.timeline_path = output.get("timeline_path")
+        package.total_duration_sec = float(output.get("total_duration_sec") or package.total_duration_sec or 0.0)
+        package.quality_checks = quality
+
+        voice_config = parameters.get("voice_config") or package.voice_settings or {}
+        if "audio_is_mock" in output:
+            resolved_mock_mode = bool(output["audio_is_mock"])
+        else:
+            resolved_mock_mode = (package.voice_settings or {}).get("resolved_mock_mode")
+        synthesis_modes = sorted({
+            str(track.get("synthesis_mode"))
+            for track in output.get("voice_tracks", [])
+            if track.get("synthesis_mode")
+        })
+        package.voice_settings = {
+            **voice_config,
+            "resolved_mock_mode": resolved_mock_mode,
+            "synthesis_modes": synthesis_modes,
+        }
+
+        tracks = output.get("voice_tracks") or []
+        if tracks:
+            media_repo = MediaRepository(session)
+            await media_repo.clear_voice_tracks(package.id)
+            for track in tracks:
+                session.add(SceneVoiceTrack(
+                    media_package_id=package.id,
+                    scene_id=track["scene_id"],
+                    audio_path=track["audio_path"],
+                    duration_sec=float(track["duration_sec"]),
+                    word_count=int(track.get("word_count", 0)),
+                    waveform_peaks=track.get("waveform_peaks") or [],
+                ))
+        await session.commit()
 
     def stop(self):
         logger.info("Stop signal received. Shutting down worker...")

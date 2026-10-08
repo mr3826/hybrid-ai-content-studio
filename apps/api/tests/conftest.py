@@ -31,10 +31,12 @@ async def client():
 
 @pytest.fixture(autouse=True)
 def enforce_test_isolation():
-    """Guarantee automated tests never make live AI provider calls and remain strictly isolated."""
+    """Keep provider calls isolated and mark deterministic test narration as mock output."""
     from app.core.config import settings
     prev_mode = settings.AI_MOCK_MODE
+    prev_tts_mode = settings.TTS_MOCK_MODE
     settings.AI_MOCK_MODE = True
+    settings.TTS_MOCK_MODE = True
     yield
     settings.AI_MOCK_MODE = prev_mode
-
+    settings.TTS_MOCK_MODE = prev_tts_mode

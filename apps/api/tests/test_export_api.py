@@ -5,6 +5,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.media import MediaPackage, MediaPackageStatus
 from app.models.script import ScriptDraft
 from app.repositories.quality_gate_repository import QualityGateRepository
 
@@ -68,6 +69,44 @@ async def test_export_gate_blocks_unapproved_script(client: AsyncClient):
     exp_res2 = await client.post(f"/api/v1/export/{item_id}")
     assert exp_res2.status_code == 422
     assert "Human Quality Gate Block" in exp_res2.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_export_blocks_failed_media_after_prior_final_approval(client: AsyncClient, db_session: AsyncSession):
+    test_id = uuid.uuid4().hex[:8]
+    family_res = await client.post("/api/v1/content-families", json={
+        "title": f"Stale Approval Media Gate ({test_id})", "content_pillar": "Media", "original_value_type": "benchmark",
+        "summary": "A later render failure invalidates a previous final approval.",
+    })
+    family_id = family_res.json()["id"]
+    item_res = await client.post(f"/api/v1/content-families/{family_id}/items", json={
+        "format": "short_vertical", "platform_target": "youtube", "working_title": f"Stale gate ({test_id})",
+        "angle": "Approval cannot authorize an unverified output.", "hook_type": "curiosity_gap",
+        "original_value_connection": "The latest media state controls export.", "viewer_value": "Prevent failed media export.",
+    })
+    item_id = item_res.json()["id"]
+    script_res = await client.post("/api/v1/scripts/generate", json={"content_item_id": item_id})
+    assert script_res.status_code == 200
+    script_id = script_res.json()["id"]
+
+    script_approval = await client.post(f"/api/v1/scripts/{script_id}/approve", json={"notes": "Script approved for gate regression."})
+    assert script_approval.status_code == 200
+    final_approval = await client.post(f"/api/v1/quality-gate/approve/{item_id}", json={"approved_by": "Test Creator"})
+    assert final_approval.status_code == 200
+
+    db_session.add(MediaPackage(
+        script_id=script_id,
+        content_item_id=item_id,
+        format="short_vertical",
+        resolution="1080x1920",
+        status=MediaPackageStatus.FAILED,
+        quality_checks={"passed": False, "production_eligible": False, "issues": ["FFmpeg failed after approval."]},
+    ))
+    await db_session.commit()
+
+    export = await client.post(f"/api/v1/export/{item_id}")
+    assert export.status_code == 422
+    assert "Export blocked: current media package" in export.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -437,5 +476,4 @@ async def test_repeated_export_requests(client: AsyncClient):
     assert pkg1["package_slug"] == pkg2["package_slug"]
     assert len(pkg2["checksum"]) == 64
     assert pkg1["files"] == pkg2["files"]
-
 

@@ -2629,9 +2629,16 @@ export interface VoiceProfile {
   name: string;
   gender: string;
   locale: string;
-  pitch_factor: number;
-  sample_rate: number;
-  is_offline_ready: boolean;
+  age?: string;
+}
+
+export interface VoiceCatalog {
+  available: boolean;
+  default_voice_id: string | null;
+  voices: VoiceProfile[];
+  supported_languages: string[];
+  unavailable_languages: string[];
+  message: string;
 }
 
 export interface SceneVoiceTrack {
@@ -2642,6 +2649,8 @@ export interface SceneVoiceTrack {
   duration_sec: number;
   word_count: number;
   waveform_peaks: number[];
+  is_mock: boolean;
+  synthesis_mode: "windows_sapi5" | "mock_harmonic";
   created_at: string;
 }
 
@@ -2651,7 +2660,7 @@ export interface MediaPackage {
   content_item_id?: string | null;
   format: string;
   resolution: string;
-  status: "draft" | "synthesizing" | "rendering" | "ready" | "failed";
+  status: string;
   total_duration_sec: number;
   audio_path?: string | null;
   subtitle_path?: string | null;
@@ -2669,9 +2678,12 @@ export interface SubtitleCue {
   index: number;
   start_sec: number;
   end_sec: number;
-  start_timecode: string;
-  end_timecode: string;
+  start_timestamp: string;
+  end_timestamp: string;
   text: string;
+  scene_id?: string | null;
+  cps: number;
+  wpm: number;
 }
 
 export interface SubtitleGenerationOutput {
@@ -2680,7 +2692,12 @@ export interface SubtitleGenerationOutput {
   subtitle_path: string;
   cue_count: number;
   cues: SubtitleCue[];
-  srt_content: string;
+  content_text: string;
+  avg_cps: number;
+  max_cps: number;
+  pacing_status: string;
+  timing_method: string;
+  timing_limitation: string;
 }
 
 export interface VoiceSynthesizeResponse {
@@ -2693,6 +2710,15 @@ export interface VoiceSynthesizeResponse {
   tracks: SceneVoiceTrack[];
 }
 
+export interface StudioJob {
+  id: string;
+  job_type: string;
+  engine_id: string | null;
+  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  error: string | null;
+  result: Record<string, any>;
+}
+
 export interface MediaRenderResponse {
   package_id: string;
   script_id: string;
@@ -2703,8 +2729,8 @@ export interface MediaRenderResponse {
   quality_report: Record<string, any>;
 }
 
-export async function getVoiceProfiles(): Promise<VoiceProfile[]> {
-  return await request<VoiceProfile[]>("/api/v1/media/voices");
+export async function getVoiceProfiles(): Promise<VoiceCatalog> {
+  return await request<VoiceCatalog>("/api/v1/media/voices");
 }
 
 export async function getMediaPackageByScript(scriptId: string): Promise<MediaPackage | null> {
@@ -2729,7 +2755,7 @@ export async function generateScriptSubtitles(
   scriptId: string,
   payload?: {
     format?: string;
-    max_words_per_cue?: number;
+    max_words_per_line?: number;
     highlight_keywords?: boolean;
   }
 ): Promise<SubtitleGenerationOutput> {
@@ -2752,6 +2778,35 @@ export async function renderScriptMedia(
     method: "POST",
     body: JSON.stringify(payload || {}),
   });
+}
+
+export async function enqueueMediaJob(
+  scriptId: string,
+  payload: {
+    action: "synthesize" | "render";
+    voice_config?: { voice_id?: string; speed?: number; mock_mode?: boolean };
+    subtitle_config?: { format?: string; max_words_per_line?: number };
+    render_config?: { resolution?: string; fps?: number; burn_subtitles?: boolean };
+  }
+): Promise<StudioJob> {
+  return await request<StudioJob>(`/api/v1/media/jobs/${scriptId}`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getStudioJob(jobId: string): Promise<StudioJob> {
+  return await request<StudioJob>(`/api/v1/jobs/${jobId}`);
+}
+
+export async function waitForStudioJob(jobId: string, timeoutMs = 10 * 60 * 1000): Promise<StudioJob> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const job = await getStudioJob(jobId);
+    if (["completed", "failed", "cancelled"].includes(job.status)) return job;
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 1000));
+  }
+  throw new Error("Media worker is still processing this job. Refresh the package status before retrying.");
 }
 
 // ==========================================
@@ -3522,7 +3577,6 @@ export async function testRestoreBackup(
     body: JSON.stringify(payload || { dry_run: true }),
   });
 }
-
 
 
 

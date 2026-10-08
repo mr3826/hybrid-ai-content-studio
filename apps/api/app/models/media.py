@@ -20,8 +20,10 @@ from app.models.base import Base
 class MediaPackageStatus:
     DRAFT = "DRAFT"
     SYNTHESIZING = "SYNTHESIZING"
+    SYNTHESIZED = "SYNTHESIZED"
     RENDERING = "RENDERING"
     READY = "READY"
+    MOCK = "MOCK"
     FAILED = "FAILED"
 
 
@@ -54,10 +56,11 @@ class MediaPackage(Base):
         JSON,
         nullable=False,
         default=lambda: {
-            "voice_id": "en-US-Studio-Standard",
+            "voice_id": "",
             "speed": 1.0,
             "pitch": 0.0,
             "sample_rate": 44100,
+            "mock_mode": False,
         },
     )
 
@@ -79,7 +82,8 @@ class MediaPackage(Base):
             "audio_peak_db": -1.0,
             "duration_sync_delta": 0.0,
             "fps": 30,
-            "passed": True,
+            "passed": False,
+            "production_eligible": False,
             "issues": [],
         },
     )
