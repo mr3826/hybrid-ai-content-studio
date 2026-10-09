@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from array import array
 import base64
+import ctypes
 import hashlib
 import json
 import logging
@@ -8,12 +9,15 @@ import math
 import os
 from pathlib import Path
 import re
+import signal
 import shutil
 import struct
 import subprocess
 import sys
 import tempfile
 import time
+import uuid
+from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 import wave
 import xml.etree.ElementTree as ET
@@ -638,6 +642,11 @@ class FFmpegMediaAdapter:
     VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi", ".gif"}
     SVG_MAX_BYTES = 10 * 1024 * 1024
     MAX_PROBE_DIAGNOSTIC_CHARS = 1000
+    SVG_BROWSER_TIMEOUT_SECONDS = 60.0
+    SVG_OUTPUT_TIMEOUT_SECONDS = 30.0
+    SVG_PROFILE_CLEANUP_TIMEOUT_SECONDS = 30.0
+    SVG_PROFILE_POLL_INTERVAL_SECONDS = 0.1
+    WINDOWS_TRANSIENT_FILE_LOCKS = {32, 33}
 
     def __init__(
         self,
@@ -820,6 +829,273 @@ class FFmpegMediaAdapter:
                     ):
                         raise AssetUnavailableError(f"SVG external resource references are not allowed: {path.name}")
 
+    @staticmethod
+    @lru_cache(maxsize=1)
+    def _windows_file_api() -> Tuple[Any, Any]:
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        create_file = kernel32.CreateFileW
+        create_file.argtypes = (
+            wintypes.LPCWSTR,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            wintypes.HANDLE,
+        )
+        create_file.restype = wintypes.HANDLE
+        close_handle = kernel32.CloseHandle
+        close_handle.argtypes = (wintypes.HANDLE,)
+        close_handle.restype = wintypes.BOOL
+        return create_file, close_handle
+
+    @staticmethod
+    def _windows_file_is_busy(path: Path) -> bool:
+        """Probe whether Windows can open a browser-profile file with exclusive access."""
+        if os.name != "nt":
+            return False
+
+        create_file, close_handle = FFmpegMediaAdapter._windows_file_api()
+
+        handle = create_file(
+            str(path),
+            0x80000000,  # GENERIC_READ
+            0,  # No sharing: fail while another process holds an incompatible handle.
+            None,
+            3,  # OPEN_EXISTING
+            0x80,  # FILE_ATTRIBUTE_NORMAL
+            None,
+        )
+        if handle == ctypes.c_void_p(-1).value:
+            error_code = ctypes.get_last_error()
+            if error_code in FFmpegMediaAdapter.WINDOWS_TRANSIENT_FILE_LOCKS:
+                return True
+            if error_code in {
+                2,
+                3,
+            }:  # The browser removed the file between enumeration and probe.
+                return False
+            raise ctypes.WinError(error_code)
+
+        if not close_handle(handle):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return False
+
+    @classmethod
+    def _wait_for_browser_profile_release(
+        cls, profile_dir: Path, timeout_seconds: float
+    ) -> None:
+        """Wait for profile files to unlock and stop changing before cleanup."""
+        deadline = time.monotonic() + max(0.0, timeout_seconds)
+        previous_snapshot: Optional[Tuple[Tuple[str, int, int], ...]] = None
+        stable_polls = 0
+        locked_files: List[str] = []
+        reported_wait = False
+        wait_started = time.monotonic()
+
+        while True:
+            snapshot: List[Tuple[str, int, int]] = []
+            locked_files = []
+            profile_scan_incomplete = False
+            if profile_dir.exists():
+                try:
+                    profile_files = profile_dir.rglob("*")
+                    for entry in profile_files:
+                        if not entry.is_file() or entry.is_symlink():
+                            continue
+                        try:
+                            stat = entry.stat()
+                        except FileNotFoundError:
+                            continue
+                        snapshot.append(
+                            (
+                                entry.relative_to(profile_dir).as_posix(),
+                                stat.st_size,
+                                stat.st_mtime_ns,
+                            )
+                        )
+                        if cls._windows_file_is_busy(entry):
+                            locked_files.append(entry.name)
+                except OSError as exc:
+                    if (
+                        os.name == "nt"
+                        and getattr(exc, "winerror", None)
+                        in cls.WINDOWS_TRANSIENT_FILE_LOCKS
+                    ):
+                        profile_scan_incomplete = True
+                    else:
+                        raise MediaRenderError(
+                            f"Could not inspect the temporary SVG browser profile: {exc}",
+                            stage="svg_cleanup",
+                        ) from exc
+
+            current_snapshot = tuple(sorted(snapshot))
+            if locked_files or profile_scan_incomplete:
+                stable_polls = 0
+                if not reported_wait:
+                    logger.debug(
+                        "Waiting for Edge/Chrome to release temporary SVG profile files",
+                        extra={
+                            "profile_dir": str(profile_dir),
+                            "locked_file_count": len(locked_files),
+                        },
+                    )
+                    reported_wait = True
+            elif current_snapshot == previous_snapshot:
+                stable_polls += 1
+                if stable_polls >= 2:
+                    if reported_wait:
+                        logger.debug(
+                            "Edge/Chrome released the temporary SVG profile",
+                            extra={
+                                "profile_dir": str(profile_dir),
+                                "wait_ms": round(
+                                    (time.monotonic() - wait_started) * 1000
+                                ),
+                            },
+                        )
+                    return
+            else:
+                stable_polls = 1
+            previous_snapshot = current_snapshot
+
+            if time.monotonic() >= deadline:
+                detail = (
+                    "Windows could not enumerate all browser profile files because a sharing violation persisted."
+                    if profile_scan_incomplete
+                    else
+                    f"Edge/Chrome still holds profile files open: {', '.join(sorted(set(locked_files))[:5])}."
+                    if locked_files
+                    else "The browser profile files did not reach a stable state."
+                )
+                raise MediaRenderError(
+                    f"Temporary SVG browser profile did not become idle within "
+                    f"{timeout_seconds:.1f}s. {detail}",
+                    stage="svg_cleanup",
+                )
+            time.sleep(cls.SVG_PROFILE_POLL_INTERVAL_SECONDS)
+
+    @classmethod
+    def _cleanup_svg_workspace(cls, workspace: Path, profile_dir: Path) -> None:
+        """Remove a per-render browser workspace after its profile is observably idle."""
+        deadline = time.monotonic() + cls.SVG_PROFILE_CLEANUP_TIMEOUT_SECONDS
+        retry = 0
+        while workspace.exists():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise MediaRenderError(
+                    "Temporary SVG browser workspace could not be cleaned within the bounded retry window.",
+                    stage="svg_cleanup",
+                )
+            cls._wait_for_browser_profile_release(profile_dir, remaining)
+            try:
+                shutil.rmtree(workspace)
+            except OSError as exc:
+                if not workspace.exists():
+                    return
+                error_code = getattr(exc, "winerror", None)
+                if (
+                    os.name != "nt"
+                    or error_code not in cls.WINDOWS_TRANSIENT_FILE_LOCKS
+                ):
+                    raise MediaRenderError(
+                        f"Could not clean the temporary SVG browser workspace: {exc}",
+                        stage="svg_cleanup",
+                    ) from exc
+                retry += 1
+                delay = min(0.1 * (2 ** min(retry - 1, 4)), 1.0)
+                logger.warning(
+                    "Retrying locked SVG browser workspace cleanup",
+                    extra={"winerror": error_code, "retry": retry},
+                )
+                time.sleep(min(delay, max(0.0, deadline - time.monotonic())))
+
+    @staticmethod
+    def _terminate_svg_process_tree(process: subprocess.Popen[str]) -> str:
+        """Stop only the renderer process tree created for this SVG request."""
+        diagnostics: List[str] = []
+        if os.name == "nt":
+            taskkill = shutil.which("taskkill")
+            if taskkill:
+                try:
+                    result = subprocess.run(
+                        [taskkill, "/PID", str(process.pid), "/T", "/F"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                        check=False,
+                    )
+                    if result.returncode != 0 and process.poll() is None:
+                        diagnostics.append(
+                            (
+                                result.stderr or result.stdout or "taskkill failed"
+                            ).strip()[-300:]
+                        )
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    diagnostics.append(
+                        f"taskkill could not stop the renderer tree: {exc}"
+                    )
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            except OSError as exc:
+                diagnostics.append(
+                    f"Could not stop the SVG renderer process group: {exc}"
+                )
+
+        if process.poll() is None:
+            try:
+                process.kill()
+            except OSError as exc:
+                diagnostics.append(f"Could not stop the SVG renderer process: {exc}")
+        return (
+            "; ".join(diagnostics) or "renderer process tree termination was requested"
+        )
+
+    @classmethod
+    def _wait_for_svg_screenshot(cls, png_path: Path) -> None:
+        """Wait until a genuine PNG screenshot is present and no longer changing."""
+        deadline = time.monotonic() + cls.SVG_OUTPUT_TIMEOUT_SECONDS
+        previous_stat: Optional[Tuple[int, int]] = None
+        while True:
+            try:
+                stat = png_path.stat()
+                current_stat = (stat.st_size, stat.st_mtime_ns)
+                if stat.st_size >= 100 and current_stat == previous_stat:
+                    signature = png_path.read_bytes()[:8]
+                    if signature != b"\x89PNG\r\n\x1a\n":
+                        raise MediaRenderError(
+                            "SVG rasterization returned an invalid PNG frame.",
+                            stage="svg_rasterization",
+                        )
+                    return
+                previous_stat = current_stat
+            except FileNotFoundError:
+                previous_stat = None
+            except PermissionError as exc:
+                if not (
+                    os.name == "nt"
+                    and getattr(exc, "winerror", None)
+                    in cls.WINDOWS_TRANSIENT_FILE_LOCKS
+                ):
+                    raise MediaRenderError(
+                        f"Could not read the SVG rasterization output: {exc}",
+                        stage="svg_rasterization",
+                    ) from exc
+                previous_stat = None
+
+            if time.monotonic() >= deadline:
+                raise MediaRenderError(
+                    "Edge/Chrome did not produce a stable PNG screenshot within "
+                    f"{cls.SVG_OUTPUT_TIMEOUT_SECONDS:.1f}s.",
+                    stage="svg_rasterization",
+                )
+            time.sleep(cls.SVG_PROFILE_POLL_INTERVAL_SECONDS)
+
     def _rasterize_svg(self, path: Path, temp_dir: Path, scene_id: str) -> Path:
         self._validate_svg(path)
         if not self.svg_renderer_path:
@@ -827,38 +1103,113 @@ class FFmpegMediaAdapter:
                 "An installed headless Edge/Chrome browser is required to rasterize SVG scene assets.",
                 stage="svg_rasterization",
             )
-        clean_id = re.sub(r"[^a-zA-Z0-9_-]", "_", scene_id)[:48]
-        png_path = temp_dir / f"scene_{clean_id}.png"
-        profile_dir = temp_dir / f"browser_profile_{clean_id}"
+        svg_uri = path.resolve().as_uri()
+        clean_id = re.sub(r"[^a-zA-Z0-9_-]", "_", scene_id)[:48] or "scene"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        workspace = Path(tempfile.mkdtemp(prefix=f"studio-svg-{clean_id}-"))
+        profile_dir = workspace / "profile"
+        screenshot_path = workspace / "frame.png"
+        png_path = temp_dir / f"scene_{clean_id}_{uuid.uuid4().hex}.png"
         command = [
             self.svg_renderer_path,
             "--headless=new",
             "--disable-gpu",
             "--no-first-run",
             "--no-default-browser-check",
+            "--disable-background-mode",
             "--disable-background-networking",
+            "--disable-breakpad",
             f"--user-data-dir={profile_dir}",
             "--window-size=1080,1920",
             "--force-device-scale-factor=1",
-            f"--screenshot={png_path}",
-            path.as_uri(),
+            f"--screenshot={screenshot_path}",
+            svg_uri,
         ]
+        render_error: Optional[MediaRenderError] = None
         try:
-            proc = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False)
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise MediaRenderError(f"SVG rasterization failed for {path.name}: {exc}", stage="svg_rasterization") from exc
-        # Edge/Chrome may hand off to its browser process and exit before the screenshot is written.
-        deadline = time.monotonic() + 30
-        while time.monotonic() < deadline:
-            if png_path.is_file() and png_path.stat().st_size >= 100:
-                break
-            time.sleep(0.1)
-        if proc.returncode != 0 or not png_path.is_file() or png_path.stat().st_size < 100:
-            detail = (proc.stderr or proc.stdout or f"browser did not create a PNG frame (exit code {proc.returncode})").strip()[-500:]
-            raise MediaRenderError(f"SVG rasterization failed for {path.name}: {detail}", stage="svg_rasterization")
-        if png_path.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
-            raise MediaRenderError(f"SVG rasterization returned an invalid PNG for {path.name}.", stage="svg_rasterization")
-        time.sleep(1.5)
+            profile_dir.mkdir()
+            process_options: Dict[str, Any] = {
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.PIPE,
+                "text": True,
+            }
+            if os.name == "nt":
+                process_options["creationflags"] = getattr(
+                    subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+                )
+            else:
+                process_options["start_new_session"] = True
+            process = subprocess.Popen(command, **process_options)
+            try:
+                stdout, stderr = process.communicate(
+                    timeout=self.SVG_BROWSER_TIMEOUT_SECONDS
+                )
+            except subprocess.TimeoutExpired as exc:
+                termination_detail = self._terminate_svg_process_tree(process)
+                try:
+                    process.communicate(timeout=10)
+                except subprocess.TimeoutExpired:
+                    if process.poll() is None:
+                        process.kill()
+                    process.wait(timeout=5)
+                    if process.stdout:
+                        process.stdout.close()
+                    if process.stderr:
+                        process.stderr.close()
+                raise MediaRenderError(
+                    f"SVG rasterization timed out after {self.SVG_BROWSER_TIMEOUT_SECONDS:.1f}s; "
+                    f"{termination_detail}.",
+                    stage="svg_rasterization",
+                ) from exc
+
+            if process.returncode != 0:
+                detail = (
+                    stderr or stdout or f"browser exited with code {process.returncode}"
+                ).strip()[-500:]
+                raise MediaRenderError(
+                    f"SVG rasterization failed for {path.name}: {detail}",
+                    stage="svg_rasterization",
+                )
+            self._wait_for_svg_screenshot(screenshot_path)
+            shutil.copyfile(screenshot_path, png_path)
+        except MediaRenderError as exc:
+            render_error = exc
+        except (OSError, subprocess.SubprocessError) as exc:
+            render_error = MediaRenderError(
+                f"SVG rasterization failed for {path.name}: {exc}",
+                stage="svg_rasterization",
+            )
+
+        try:
+            self._cleanup_svg_workspace(workspace, profile_dir)
+        except MediaRenderError as cleanup_error:
+            try:
+                png_path.unlink(missing_ok=True)
+            except OSError as output_cleanup_error:
+                logger.warning(
+                    "Could not remove the SVG frame after profile cleanup failed",
+                    extra={
+                        "frame_path": str(png_path),
+                        "cleanup_error": str(output_cleanup_error),
+                    },
+                )
+            logger.error(
+                "Retaining SVG renderer workspace because safe cleanup did not complete",
+                extra={
+                    "workspace": str(workspace),
+                    "cleanup_error": str(cleanup_error),
+                },
+            )
+            if render_error:
+                raise MediaRenderError(
+                    f"{render_error} Browser profile cleanup also failed: {cleanup_error}",
+                    stage="svg_cleanup",
+                ) from cleanup_error
+            raise
+
+        if render_error:
+            png_path.unlink(missing_ok=True)
+            raise render_error
         return png_path
 
     @staticmethod

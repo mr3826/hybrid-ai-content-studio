@@ -1,13 +1,17 @@
 from pathlib import Path
 import binascii
+from concurrent.futures import ThreadPoolExecutor
 import math
+import os
 import struct
 import subprocess
+import tempfile
 import wave
 import zlib
 
 import pytest
 
+from app.engines.media import adapters as media_adapters
 from app.engines.media.adapters import (
     AssetUnavailableError,
     FFmpegMediaAdapter,
@@ -71,6 +75,17 @@ def _adapter(tmp_path: Path) -> FFmpegMediaAdapter:
     root = tmp_path / "assets"
     root.mkdir(parents=True, exist_ok=True)
     return FFmpegMediaAdapter(output_dir=str(tmp_path / "video"), asset_root=str(root))
+
+
+def _write_topic_svg(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90" viewBox="0 0 160 90">'
+        '<rect width="160" height="90" fill="#007f5f"/><circle cx="80" cy="45" r="28" fill="#fcbf49"/>'
+        '</svg>',
+        encoding="utf-8",
+    )
+    return path
 
 
 def _require_local_ffmpeg(adapter: FFmpegMediaAdapter) -> None:
@@ -380,23 +395,152 @@ def test_svg_external_resources_are_rejected(tmp_path):
         adapter._validate_svg(svg)
 
 
-def test_svg_is_rasterized_from_topic_asset_when_headless_browser_exists(tmp_path):
+def test_svg_is_rasterized_from_topic_asset_when_headless_browser_exists(
+    tmp_path, monkeypatch
+):
     adapter = _adapter(tmp_path)
     if not adapter.svg_renderer_path:
         pytest.skip("Headless Edge/Chrome is not installed.")
-    svg = adapter.asset_root / "images" / "topic-scene.svg"
-    svg.parent.mkdir(parents=True, exist_ok=True)
-    svg.write_text(
-        '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90" viewBox="0 0 160 90">'
-        '<rect width="160" height="90" fill="#007f5f"/><circle cx="80" cy="45" r="28" fill="#fcbf49"/>'
-        '</svg>',
-        encoding="utf-8",
-    )
-    import tempfile
-    with tempfile.TemporaryDirectory() as temp:
+    svg = _write_topic_svg(adapter.asset_root / "images" / "topic-scene.svg")
+    profile_root = tmp_path / "svg-profile-root"
+    profile_root.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(profile_root))
+    with tempfile.TemporaryDirectory(dir=tmp_path) as temp:
         png = adapter._rasterize_svg(svg, Path(temp), "svg-topic")
         assert png.is_file()
-        assert png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+        png_bytes = png.read_bytes()
+        assert png_bytes.startswith(b"\x89PNG\r\n\x1a\n")
+        assert png.stat().st_size > 100
+        assert struct.unpack(">II", png_bytes[16:24]) == (1080, 1920)
+        assert not list(Path(temp).glob("browser_profile_*"))
+        assert not list(profile_root.iterdir())
+
+
+def test_svg_rasterization_repeated_calls_use_distinct_profiles_and_cleanup(
+    tmp_path, monkeypatch
+):
+    adapter = _adapter(tmp_path)
+    if not adapter.svg_renderer_path:
+        pytest.skip("Headless Edge/Chrome is not installed.")
+    svg = _write_topic_svg(adapter.asset_root / "images" / "repeated-scene.svg")
+    profile_root = tmp_path / "repeated-profile-root"
+    profile_root.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(profile_root))
+    output_root = tmp_path / "repeated-output"
+    output_root.mkdir()
+
+    images = [adapter._rasterize_svg(svg, output_root, "same-scene") for _ in range(3)]
+
+    assert len({image.resolve() for image in images}) == 3
+    assert all(image.read_bytes().startswith(b"\x89PNG\r\n\x1a\n") for image in images)
+    assert not list(profile_root.iterdir())
+    assert not list(output_root.glob("browser_profile_*"))
+
+
+def test_svg_rasterization_isolates_concurrent_same_scene_calls(tmp_path, monkeypatch):
+    adapter = _adapter(tmp_path)
+    if not adapter.svg_renderer_path:
+        pytest.skip("Headless Edge/Chrome is not installed.")
+    svg = _write_topic_svg(adapter.asset_root / "images" / "concurrent-scene.svg")
+    profile_root = tmp_path / "concurrent-profile-root"
+    profile_root.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(profile_root))
+    output_root = tmp_path / "concurrent-output"
+    output_root.mkdir()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        images = list(
+            executor.map(
+                lambda _: adapter._rasterize_svg(svg, output_root, "same-scene"),
+                range(2),
+            )
+        )
+
+    assert len({image.resolve() for image in images}) == 2
+    assert all(image.read_bytes().startswith(b"\x89PNG\r\n\x1a\n") for image in images)
+    assert not list(profile_root.iterdir())
+    assert not list(output_root.glob("browser_profile_*"))
+
+
+def test_svg_workspace_cleanup_retries_transient_windows_profile_lock(
+    tmp_path, monkeypatch
+):
+    if os.name != "nt":
+        pytest.skip("Windows file-sharing retry behavior is Windows-specific.")
+    workspace = tmp_path / "svg-workspace"
+    profile_dir = workspace / "profile"
+    profile_dir.mkdir(parents=True)
+    adapter = _adapter(tmp_path)
+    real_rmtree = media_adapters.shutil.rmtree
+    attempts = 0
+
+    def rmtree_with_transient_sharing_violation(path, *args, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise OSError(32, "Sharing violation", str(path), 32)
+        return real_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(
+        media_adapters.shutil, "rmtree", rmtree_with_transient_sharing_violation
+    )
+    adapter._cleanup_svg_workspace(workspace, profile_dir)
+
+    assert attempts == 2
+    assert not workspace.exists()
+
+
+def test_svg_workspace_cleanup_surfaces_permanent_windows_access_denied(
+    tmp_path, monkeypatch
+):
+    if os.name != "nt":
+        pytest.skip("Windows access-denied behavior is Windows-specific.")
+    workspace = tmp_path / "svg-workspace"
+    profile_dir = workspace / "profile"
+    profile_dir.mkdir(parents=True)
+    adapter = _adapter(tmp_path)
+
+    def rmtree_with_access_denied(path, *args, **kwargs):
+        raise OSError(5, "Access is denied", str(path), 5)
+
+    monkeypatch.setattr(media_adapters.shutil, "rmtree", rmtree_with_access_denied)
+    with pytest.raises(MediaRenderError, match="Could not clean"):
+        adapter._cleanup_svg_workspace(workspace, profile_dir)
+
+    assert workspace.exists()
+
+
+def test_svg_profile_probe_detects_a_real_windows_open_file_handle(tmp_path):
+    if os.name != "nt":
+        pytest.skip("Windows file-sharing probes are Windows-specific.")
+    profile_dir = tmp_path / "browser_profile"
+    profile_dir.mkdir()
+    database = profile_dir / "load_statistics.db"
+    database.write_bytes(b"profile state")
+
+    with database.open("rb"):
+        assert FFmpegMediaAdapter._windows_file_is_busy(database)
+
+    assert not FFmpegMediaAdapter._windows_file_is_busy(database)
+
+
+def test_svg_profile_scan_does_not_treat_sharing_violation_as_idle(
+    tmp_path, monkeypatch
+):
+    if os.name != "nt":
+        pytest.skip("Windows directory-sharing behavior is Windows-specific.")
+    profile_dir = tmp_path / "browser_profile"
+    profile_dir.mkdir()
+    adapter = _adapter(tmp_path)
+
+    def rglob_with_persistent_sharing_violation(_path, _pattern):
+        raise OSError(32, "Sharing violation", str(profile_dir), 32)
+
+    monkeypatch.setattr(Path, "rglob", rglob_with_persistent_sharing_violation)
+    monkeypatch.setattr(FFmpegMediaAdapter, "SVG_PROFILE_POLL_INTERVAL_SECONDS", 0.01)
+
+    with pytest.raises(MediaRenderError, match="did not become idle"):
+        adapter._wait_for_browser_profile_release(profile_dir, timeout_seconds=0.05)
 
 
 def test_subtitle_timing_orders_scenes_and_reports_proportional_limit(tmp_path):
