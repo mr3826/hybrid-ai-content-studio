@@ -28,6 +28,7 @@
 | **Phase 21** | Cleanup, Backup & Reliability | PASS | `69be8a9` | 114 pytest passed, web build passed | 13th engine (cleanup), reference-safe file retention, SHA-256 backup archives, sandbox restore & SQLite PRAGMA validation, bilingual UI |
 | **Phase 22** | Final E2E Certification | PASS | `ca0a5ec` | 117 pytest passed, web build passed | Complete 24-step creator journey certified, 10 invariants validated, 24 static pages verified |
 | **Phase 23** | Evidence-Grounded AI Script Studio | PASS | `3826db8` | 295 backend/engine/worker tests passed, 1 live smoke skipped; TypeScript, 24-route production build, both browser smokes, and live Gemini smoke passed | Gemini-only release acceptance and integration are verified on `master`; PRs #1, #2, and #3 are merged. |
+| **Phase 24** | Hybrid Category Sidebar & Action-Based Creator Workflow | PASS | `—` | 295 passed, 1 opt-in live smoke skipped; TypeScript, 24-route production build, creator workflow, Script Studio, and Gemini UI browser smokes passed | Persisted current-work summary and architecture map added. Human gates and manual publishing remain unchanged. |
 
 ## Phase 23 certification — 2026-10-10
 
@@ -54,6 +55,23 @@ Phase 23 is **PASS** on `master` at integration merge commit `3826db8`. Live gen
 The existing Windows SAPI5/FFmpeg real-media smoke and playback measurements remain recorded in the historical media verification below; they were not rerun because the Phase 23 changes are limited to AI generation and integration fixes. The full deterministic creator lifecycle passed in the final integrated suite. PR #1 merged as `57321a3`, PR #2 as `8c9bc87`, and PR #3 as `3826db8`. Final master verification passed: **295 passed, 1 opt-in live smoke skipped**, TypeScript passed, the 24-route production build passed, and both browser smokes passed. The separate hybrid category sidebar and action-based creator workflow is the next development phase.
 
 The previous Phase 23 reports below describe earlier OpenAI/Qwen routing revisions. They are retained as historical evidence only and do not describe the current Gemini-only implementation.
+
+## Phase 24 implementation and verification — 2026-10-10
+
+Phase 24 is **PASS** on `feat/v1-01-structural-backbone`, based on integrated `master` at `d8f35aebcb9f9eb1dd95391caedf4fc6833b1586`. The sidebar is organized as **Discover → Verify → Create → Produce → Publish → Learn**, with each stage expanding to its relevant engine pages. Studio settings, engine catalog, and cleanup remain grouped under Studio Tools. Desktop sidebar and mobile drawer share accessible, collapsible stage groups. The dashboard presents a next-action card based on existing setup and lifecycle counts, plus a current-work panel based on saved family and child-item state. The architecture boundary map is in `docs/V1_01_STRUCTURAL_BACKBONE.md`. All topic, research, script, final QC, and manual publishing decisions remain explicit creator actions. No backend or engine contract changed.
+
+### Acceptance verification
+
+- Isolated backend, engine, and worker suite: `uv run --locked pytest -p phase23_test_isolation apps/api/tests apps/api/app/engines worker/tests -q -ra --tb=short` — **295 passed, 1 skipped, 10 existing Starlette deprecation warnings in 76.88 s**. The skip is the explicit opt-in live Gemini smoke; test isolation blocked provider requests. This includes the deterministic creator lifecycle and script, QC, media, export, and publishing regressions.
+- Frontend TypeScript check: `node_modules/.bin/tsc.cmd --noEmit --incremental false` from `apps/web` — **passed**.
+- Production build: `npm run build` from `apps/web` — **passed**, all **24 routes** generated.
+- Browser `npm run smoke:creator-workflow` against the production build — **passed** with API responses intercepted. It verified persisted current family/item status, checkpoint completion, a missing-research blocker and route, script action routing, active route after direct navigation and refresh, desktop/mobile category expansion, Escape handling, keyboard focus styling, English and Bangla labels, no browser/API errors, 44-pixel targets, and no horizontal overflow at 375, 768, and 1440 pixels.
+- Browser `npm run smoke:script-studio` against the production build — **passed** with a deterministic Mock preview fixture and intercepted API responses; Mock remains unverified and script approval stays disabled.
+- Browser `npm run smoke:ai-provider-ui` against the production build — **passed**, confirming Gemini and Mock remain the only selectable providers with API responses intercepted.
+- `docs/V1_01_STRUCTURAL_BACKBONE.md` documents actual route/engine contracts, saved-state workflow semantics, stable boundaries, risks, and future work labeled as planned.
+- `git diff --check` — **passed**.
+
+No live Gemini or other provider request was made during Phase 24. The opt-in provider test remained skipped by the guarded suite. No provider, prompt, media engine, worker, or backend contract behavior changed.
 
 ## Historical Phase 23 verification update — 2026-10-10 (pre-Gemini-only revision)
 

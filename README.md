@@ -160,11 +160,15 @@ d:\hexabyte_technologies\easy-content\
 - **Media**: Local FFmpeg, deterministic Speech Synthesis, sub-second SRT caption alignment, SVG diagram generation.
 - **Testing**: Pytest, Pytest-Asyncio, HTTPX, SQLite PRAGMA test fixtures.
 
+The V1.01 dashboard groups existing routes by creator stage and summarizes the current content family from saved workflow state. It only links to the existing tools; approval eligibility remains enforced by the backend. See [V1.01 Structural Backbone](docs/V1_01_STRUCTURAL_BACKBONE.md) for the inspected route map, engine boundaries, and planned future work.
+
 ---
 
 ## 5. User Manual: The End-to-End Creator Workflow
 
 Here is the complete step-by-step creator journey from day one to continuous publishing and learning:
+
+The dashboard and sidebar organize the journey into six stages: **Discover → Verify → Create → Produce → Publish → Learn**. The dashboard highlights a suggested next action using the existing setup and content-lifecycle counts. Open a stage in the sidebar to find its engine pages; studio administration and engine catalog tools are grouped separately. The recommendation only opens the relevant page: topic approval, research verification, script approval, final quality sign-off, and publishing remain explicit creator actions.
 
 ```text
  [1. Settings]   ──> [2. Sources & Trends] ──> [3. Opportunities] ──> [4. Research Packet]

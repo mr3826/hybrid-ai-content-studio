@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint",
+    "smoke:creator-workflow": "node tests/creator-workflow-smoke.mjs",
     "smoke:script-studio": "node tests/script-studio-smoke.mjs",
     "smoke:ai-provider-ui": "node tests/ai-provider-ui-smoke.mjs"
   },
