@@ -27,29 +27,30 @@
 | **Phase 20** | Owned Audience Tracking | PASS | `abfc211` | 107 pytest passed, web build passed | Lead magnets, conversion snapshots, deterministic UTM builder, subscriber economics & valuation, bilingual UI |
 | **Phase 21** | Cleanup, Backup & Reliability | PASS | `69be8a9` | 114 pytest passed, web build passed | 13th engine (cleanup), reference-safe file retention, SHA-256 backup archives, sandbox restore & SQLite PRAGMA validation, bilingual UI |
 | **Phase 22** | Final E2E Certification | PASS | `ca0a5ec` | 117 pytest passed, web build passed | Complete 24-step creator journey certified, 10 invariants validated, 24 static pages verified |
-| **Phase 23** | Evidence-Grounded AI Script Studio | IN PROGRESS | — | 292 backend/engine/worker tests passed; web build and provider UI smoke passed | Gemini-only implementation is locally verified. Live acceptance remains pending: both authorized generation requests returned HTTP 400; the current responseFormat migration has not yet been exercised against the provider. |
+| **Phase 23** | Evidence-Grounded AI Script Studio | PASS | `0e1fa3a` | 295 backend/engine/worker tests passed; TypeScript, 24-route production build, both browser smokes, and live Gemini smoke passed | Gemini-only release acceptance is verified. PR chain #1 → #2 → #3 is prepared and remains open for review/integration. |
 
-## Latest Phase 23 Gemini-only verification — 2026-10-10
+## Phase 23 certification — 2026-10-10
 
-Phase 23 remains **IN PROGRESS** on `feat/v1-1-ai-script-generation`. Live generation is Gemini-only; deterministic Mock remains offline and unapprovable. The default model is `gemini-3.8-flash`, with `GEMINI_MODEL` available for configuration. There is no retry or provider fallback. Script output is checked against the complete local JSON Schema, evidence links, pacing, and brand rules before persistence; human script and final QC approval remain required.
+Phase 23 is **PASS** on `feat/v1-1-ai-script-generation`, implementation commit `0e1fa3a`. Live generation uses Gemini only; deterministic Mock remains offline and unapprovable. The selected stable model is `gemini-3.8-flash`, configurable through `GEMINI_MODEL`. There is no automatic retry, OpenAI dependency, or Qwen fallback. Structured output is checked against the complete local JSON Schema, selected evidence links, pacing, and brand rules before persistence; script approval and final QC remain separate human gates.
 
-### Local verification
+### Acceptance verification
 
-- Guarded combined backend, engine, and worker suite: `uv run --locked pytest -p phase23_test_isolation apps/api/tests apps/api/app/engines worker/tests -q -ra` — **292 passed, 1 skipped, 10 warnings in 99.83 s**. The single skip is the opt-in live Gemini smoke. The suite used the PR #1 isolation plugin, which forces mock AI/TTS, in-memory SQLite, dummy provider credentials, and blocks unexpected provider HTTP requests.
-- Focused Gemini adapter, routing, settings, security, and script API regressions — **43 passed, 1 skipped**. The skipped test is the same live-only smoke.
-- Focused Gemini adapter and script-generation regressions after the response format migration — **20 passed**.
-- PR #1 provider-network isolation regressions — **6 passed**, using local-only transports to verify both provider blocking and test isolation.
-- Frontend TypeScript check passed. `npm run build` passed with all **24 routes** generated.
-- Production browser `smoke:ai-provider-ui` passed with API responses intercepted. It confirmed only Gemini and Mock are selectable and reported no browser errors.
-- `git diff --check` passed.
+- Guarded backend, engine, and worker suite: `uv run --locked pytest -p phase23_test_isolation apps/api/tests apps/api/app/engines worker/tests -q -ra` — **295 passed, 1 skipped, 10 existing Starlette deprecation warnings in 99.00 s**. The skip is the explicit opt-in live smoke; the isolation plugin forced mock AI/TTS, in-memory SQLite, dummy credentials, and blocked unexpected provider HTTP calls. This run includes the deterministic 24-step creator lifecycle certification.
+- Focused Gemini adapter, isolation, and script-generation regressions — **29 passed**.
+- Frontend TypeScript check: `node_modules/.bin/tsc.cmd --noEmit --incremental false` from `apps/web` — **passed**.
+- Production build: `npm run build` from `apps/web` — **passed**, all **24 routes** generated.
+- Browser `npm run smoke:ai-provider-ui` — **passed**, confirming only Gemini and Mock are selectable with API responses intercepted.
+- Browser `npm run smoke:script-studio` — **passed** against a persisted, temporary mock script; the page labeled it as mock and kept approval disabled. The isolated temporary database and both local servers were removed/stopped after the check.
+- `git diff --check` — **passed**.
 
-### Live provider attempt and limit
+### Live Gemini acceptance
 
-- The model preflight returned **HTTP 200** and confirmed `generateContent` availability.
-- The first authorized script-generation request returned **HTTP 400** because the deprecated Gemini `responseSchema` rejected `additionalProperties`; no script draft was persisted.
-- The one explicitly authorized follow-up request returned **HTTP 400 INVALID_ARGUMENT** after the adapter removed that field; the API returned recovery guidance and no draft was persisted.
-- The adapter now uses the current `generationConfig.responseFormat.text.schema` request format and filters Pydantic-only fields to the documented JSON Schema subset. The migration and strict-schema behavior pass the local adapter/security regressions and the guarded combined suite.
-- No live request has been sent after this response format migration. Successful real-provider generation, persistence, provenance read-back, and unapproved status remain uncertified. Phase 23 cannot be marked complete until the current payload passes the one-request live acceptance smoke.
+- Command: `uv run --locked pytest --run-live-provider-smoke apps/api/tests/test_live_script_provider_smoke.py -q -s` — **1 passed in 25.21 s** after explicit user authorization.
+- Gemini model preflight returned **HTTP 200** and confirmed `generateContent`; the single structured generation request returned **HTTP 200**. The test validated the structured response, evidence/pacing/brand requirements, persisted Gemini provider/model provenance, research packet/version and originality plan, selected evidence links, read-back, and `is_approved=false`.
+- Reported usage was **1,703 total tokens** and estimated cost **$0.002777** (telemetry estimate, not an invoice). No secret was printed.
+- Earlier bounded attempts against the prior configuration returned schema errors, `MAX_TOKENS`, and one temporary timeout/503; none persisted a draft. Google documents that Gemini 3 thought tokens count against `maxOutputTokens`; the adapter now explicitly sets `thinkingLevel: low` for Gemini 3 and uses the current structured-output request format. The final request passed without application retry or fallback.
+
+The existing Windows SAPI5/FFmpeg real-media smoke and playback measurements remain recorded in the historical media verification below; they were not rerun because this commit changes only AI provider generation. The full deterministic creator lifecycle passed in the current suite. PR #1, #2, and #3 remain open in the required dependency order **#1 → #2 → #3**; this certification does not merge them or start the separate hybrid sidebar UX phase.
 
 The previous Phase 23 reports below describe earlier OpenAI/Qwen routing revisions. They are retained as historical evidence only and do not describe the current Gemini-only implementation.
 

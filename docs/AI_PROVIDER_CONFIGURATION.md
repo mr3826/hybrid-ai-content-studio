@@ -24,7 +24,7 @@ Set `AI_MOCK_MODE=false` only when a live Gemini credential is configured. Keep 
 
 ## Model and cost
 
-The selected release model is the stable `gemini-3.8-flash`. Google's model catalog documents structured outputs and low/medium/high thinking support, and the live acceptance smoke confirmed this account can call `generateContent`. `GEMINI_MODEL` remains configurable for a deliberate manual change; the application does not switch models to work around access or quota failures.
+The selected release model is the stable `gemini-3.8-flash`. Google's catalog lists both `gemini-3.8-flash` and `gemini-3.6-flash` as stable; 3.8 was selected as the newer stable Flash release with structured outputs. Its low/medium/high thinking controls are documented, and the live acceptance smoke confirmed this account could call `generateContent`. `gemini-3.6-flash` was not sent a live request because the selected model completed the required acceptance flow. `GEMINI_MODEL` remains configurable for a deliberate manual change; the application does not switch models to work around access or quota failures.
 
 The AI engine's current Gemini estimates use the introductory Gemini 3.8 Flash standard rates documented for use through December 31, 2026: **$0.75 per million input tokens** and **$3.75 per million output tokens**. Google's published standard rates change to $1.50 / $7.50 per million tokens beginning January 1, 2027. Update `apps/api/app/engines/ai/rules.yaml` before that date so budget estimates and telemetry stay aligned with the active price schedule. These are estimates; the provider's actual account billing is authoritative.
 
@@ -49,6 +49,8 @@ The opt-in live acceptance smoke passed with `gemini-3.8-flash`. Model preflight
 ## Official Google references
 
 - [Gemini 3.8 Flash model](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash)
+- [Gemini model catalog](https://ai.google.dev/gemini-api/docs/models)
+- [Gemini thinking and output-token behavior](https://ai.google.dev/gemini-api/docs/generate-content/thinking)
 - [Structured outputs](https://ai.google.dev/gemini-api/docs/structured-output)
-- [Generate Content API](https://ai.google.dev/gemini-api/docs/generate-content/latest-model)
+- [Generate Content API reference](https://ai.google.dev/api/generate-content)
 - [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing)
