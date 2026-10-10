@@ -36,6 +36,8 @@ class ScriptDraft(Base, TimestampMixin):
 
     # 6 Quality Dimensions Breakdown (Evidence, Brand, Originality, Viewer Value, Niche Fit, Repetition)
     quality_scores: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    # Sanitized provider/model/usage provenance for the current script revision.
+    generation_metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
 
     is_approved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     override_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -84,6 +86,9 @@ class ScriptSection(Base, TimestampMixin):
     heading: Mapped[str] = mapped_column(String(128), default="", nullable=False)
     narration: Mapped[str] = mapped_column(Text, default="", nullable=False)
     visual_cue: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    evidence_category: Mapped[str] = mapped_column(
+        String(32), default="context", nullable=False
+    )
     estimated_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     word_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     linked_claim_ids: Mapped[List[str]] = mapped_column(JSON, default=list, nullable=False)

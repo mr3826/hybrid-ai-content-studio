@@ -3,19 +3,14 @@
 import { useEffect, useState } from "react";
 import {
   Bot,
-  Sparkles,
   Zap,
   Activity,
   DollarSign,
-  Clock,
   ShieldAlert,
   ShieldCheck,
   RefreshCw,
   Play,
   Terminal,
-  FileCode,
-  Layers,
-  ArrowRight,
   AlertTriangle,
   CheckCircle2,
   Cpu,
@@ -174,7 +169,7 @@ export default function AIStudioPage() {
             <div>
               <h1 className="text-xl font-bold text-white tracking-tight">AI Provider Engine</h1>
               <p className="text-xs text-slate-400">
-                Centralized LLM router with Gemini primary, Qwen fallback, and token cost telemetry
+                Gemini is the only live provider; Mock mode keeps local development offline.
               </p>
             </div>
           </div>
@@ -193,11 +188,11 @@ export default function AIStudioPage() {
       </div>
 
       {/* Provider Health & Budget Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Primary Adapter Card */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Gemini Adapter Card */}
         <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Primary Adapter</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Gemini Adapter</span>
             <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
@@ -205,22 +200,11 @@ export default function AIStudioPage() {
             <span className="text-xs font-mono text-indigo-400">{status?.primary_model}</span>
           </div>
           <p className="mt-1 text-[11px] text-slate-400">
-            {status?.mock_mode ? "⚡ Mock Mode Active (Zero API cost)" : "Connected to Google Generative API"}
-          </p>
-        </div>
-
-        {/* Fallback Adapter Card */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Failover Adapter</span>
-            <span className="flex h-2 w-2 rounded-full bg-amber-400" />
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <h3 className="text-base font-bold text-white capitalize">{status?.fallback_provider || "Qwen"}</h3>
-            <span className="text-xs font-mono text-amber-400">{status?.fallback_model}</span>
-          </div>
-          <p className="mt-1 text-[11px] text-slate-400">
-            Triggers strictly on technical 429/500/503 or schema failures
+            {status?.primary_configured
+              ? `${status.primary_provider} credential configured`
+              : `${status?.primary_provider || "Primary provider"} credential missing`}
+            {" · "}
+            {status?.mock_mode ? "Mock adapter active" : "Live requests enabled"}
           </p>
         </div>
 
@@ -255,7 +239,7 @@ export default function AIStudioPage() {
             <span className="text-xs font-medium text-emerald-400">{analytics?.success_rate ?? 100}% success</span>
           </div>
           <p className="mt-1 text-[11px] text-slate-400">
-            {analytics?.fallback_count ?? 0} failovers ({analytics?.fallback_rate ?? 0}% rate)
+            {analytics?.fallback_count ?? 0} historical fallback events ({analytics?.fallback_rate ?? 0}%)
           </p>
         </div>
       </div>
@@ -345,28 +329,30 @@ export default function AIStudioPage() {
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">Preferred Provider</label>
                 <select
+                  aria-label="Preferred Provider"
                   value={providerPref}
                   onChange={(e) => setProviderPref(e.target.value)}
                   className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
                 >
-                  <option value="auto">Auto (Gemini Primary)</option>
+                  <option value="auto">Auto (Gemini or Mock mode)</option>
                   <option value="gemini">Gemini</option>
-                  <option value="qwen">Qwen</option>
                   <option value="mock">Mock Offline</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Failover Simulation Test</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Failure Simulation</label>
                 <select
                   value={simulateFailure}
                   onChange={(e) => setSimulateFailure(e.target.value)}
                   className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-xs text-white focus:border-indigo-500 focus:outline-none"
                 >
                   <option value="none">None (Normal Execution)</option>
-                  <option value="server_error">Simulate 503 Server Error (Failover to Qwen)</option>
-                  <option value="rate_limit">Simulate 429 Rate Limit (Failover to Qwen)</option>
-                  <option value="schema_error">Simulate Malformed JSON (Schema Failover)</option>
+                  <option value="server_error">Simulate 503 service error (one attempt)</option>
+                  <option value="rate_limit">Simulate 429 rate limit (one attempt)</option>
+                  {playgroundMode === "structured" && (
+                    <option value="schema_error">Simulate malformed structured output (no retry)</option>
+                  )}
                 </select>
               </div>
             </div>
@@ -375,7 +361,7 @@ export default function AIStudioPage() {
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300 flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>
-                  Simulation active: Primary provider will artificially fail, triggering the automated technical fallback to Qwen.
+                  Simulation active: the selected adapter returns a failure after one attempt. No alternate provider is called.
                 </span>
               </div>
             )}
@@ -388,7 +374,7 @@ export default function AIStudioPage() {
               {executing ? (
                 <>
                   <RefreshCw className="h-4 w-4 animate-spin" />
-                  Routing to LLM Adapter...
+                  Sending one AI request...
                 </>
               ) : (
                 <>
@@ -406,15 +392,15 @@ export default function AIStudioPage() {
                 <h2 className="text-sm font-semibold text-white">Live Execution Result</h2>
                 {executionResult && (
                   <div className="flex items-center gap-2">
-                    {executionResult.fallback_used ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/30">
-                        <Zap className="h-3 w-3" />
-                        Failover: {executionResult.provider}
-                      </span>
-                    ) : (
+                    {executionResult.success ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 border border-emerald-500/30">
                         <CheckCircle2 className="h-3 w-3" />
-                        Primary: {executionResult.provider}
+                        {executionResult.provider}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-semibold text-rose-300 border border-rose-500/30">
+                        <AlertTriangle className="h-3 w-3" />
+                        Failed · {executionResult.provider}
                       </span>
                     )}
                   </div>
@@ -428,14 +414,14 @@ export default function AIStudioPage() {
                 </div>
               )}
 
+              {executionResult && !executionResult.success && executionResult.error_message && (
+                <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 p-4 text-xs text-rose-300">
+                  {executionResult.error_message}
+                </div>
+              )}
+
               {executionResult ? (
                 <div className="mt-4 space-y-4">
-                  {executionResult.fallback_used && (
-                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
-                      <span className="font-semibold">Technical Failover Activated: </span>
-                      {executionResult.fallback_reason || "Primary adapter failed technical validation."}
-                    </div>
-                  )}
 
                   {/* Telemetry Chips */}
                   <div className="grid grid-cols-4 gap-2 text-center text-xs">
@@ -490,26 +476,28 @@ export default function AIStudioPage() {
             <div>
               <label className="block text-[11px] font-medium text-slate-400 mb-1">Filter Provider</label>
               <select
+                aria-label="Filter Provider"
                 value={logFilterProvider}
                 onChange={(e) => setLogFilterProvider(e.target.value)}
                 className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white focus:outline-none"
               >
                 <option value="all">All Providers</option>
                 <option value="gemini">Gemini</option>
-                <option value="qwen">Qwen</option>
+                <option value="qwen">Qwen (historical)</option>
+                <option value="openai">OpenAI (historical)</option>
                 <option value="mock">Mock</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-slate-400 mb-1">Failover Filter</label>
+              <label className="block text-[11px] font-medium text-slate-400 mb-1">Routing History</label>
               <select
                 value={logFilterFallback}
                 onChange={(e) => setLogFilterFallback(e.target.value)}
                 className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white focus:outline-none"
               >
                 <option value="all">All Logs</option>
-                <option value="fallback_only">Failovers Only</option>
+                <option value="fallback_only">Historical fallback records</option>
               </select>
             </div>
           </div>
@@ -546,11 +534,11 @@ export default function AIStudioPage() {
                     <td className="px-4 py-3">
                       {log.fallback_used ? (
                         <span className="inline-flex items-center gap-1 rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/30">
-                          ⚡ Failover
+                          Historical fallback
                         </span>
                       ) : (
                         <span className="inline-flex items-center rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-400">
-                          Direct
+                          Single provider
                         </span>
                       )}
                     </td>
@@ -598,10 +586,10 @@ export default function AIStudioPage() {
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-3">
             <div className="flex items-center gap-2 text-amber-400">
               <ShieldAlert className="h-5 w-5" />
-              <h3 className="font-semibold text-sm text-white">Technical-Only Failover</h3>
+              <h3 className="font-semibold text-sm text-white">Single Provider Request</h3>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Fallback from Gemini to Qwen triggers strictly on infrastructure errors (HTTP 429 rate limits, 500/503 service outages, or malformed schema parsing). Failover is strictly prohibited to manufacture factual support or override editorial rejections.
+              Live generation sends one request to Gemini. A quota, authentication, network, safety, or schema error is returned with recovery guidance and no alternate provider request.
             </p>
           </div>
 
@@ -611,7 +599,7 @@ export default function AIStudioPage() {
               <h3 className="font-semibold text-sm text-white">Zero Secrets & Cost Caps</h3>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              API tokens are loaded from local environment configurations and never committed or persisted in SQLite telemetry tables. A hard daily budget ceiling ($5.00/day) prevents runaway costs during automated signal harvesting.
+              API tokens are loaded from local environment configuration and never persisted in SQLite telemetry. Daily and per-content-family cost limits are checked before generation; script approval remains a human action.
             </p>
           </div>
         </div>

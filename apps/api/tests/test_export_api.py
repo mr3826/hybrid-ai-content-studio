@@ -1,6 +1,5 @@
 import uuid
 from datetime import timedelta
-
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.media import MediaPackage, MediaPackageStatus
 from app.models.script import ScriptDraft
 from app.repositories.quality_gate_repository import QualityGateRepository
+from script_test_utils import install_script_provider_fixture, prepare_script_inputs
 
 
 @pytest.mark.asyncio
@@ -21,7 +21,7 @@ async def test_export_health(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_export_gate_blocks_unapproved_script(client: AsyncClient):
+async def test_export_gate_blocks_unapproved_script(client: AsyncClient, db_session: AsyncSession):
     test_id = uuid.uuid4().hex[:6]
 
     # 1. Create family
@@ -52,6 +52,7 @@ async def test_export_gate_blocks_unapproved_script(client: AsyncClient):
     )
     assert item_res.status_code == 201
     item_id = item_res.json()["id"]
+    await prepare_script_inputs(db_session, item_id)
 
     # 3. Attempt export before script even exists -> should return 422
     exp_res1 = await client.post(f"/api/v1/export/{item_id}")
@@ -72,7 +73,7 @@ async def test_export_gate_blocks_unapproved_script(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_export_blocks_failed_media_after_prior_final_approval(client: AsyncClient, db_session: AsyncSession):
+async def test_export_blocks_failed_media_after_prior_final_approval(client: AsyncClient, db_session: AsyncSession, monkeypatch):
     test_id = uuid.uuid4().hex[:8]
     family_res = await client.post("/api/v1/content-families", json={
         "title": f"Stale Approval Media Gate ({test_id})", "content_pillar": "Media", "original_value_type": "benchmark",
@@ -85,6 +86,8 @@ async def test_export_blocks_failed_media_after_prior_final_approval(client: Asy
         "original_value_connection": "The latest media state controls export.", "viewer_value": "Prevent failed media export.",
     })
     item_id = item_res.json()["id"]
+    await prepare_script_inputs(db_session, item_id)
+    install_script_provider_fixture(monkeypatch)
     script_res = await client.post("/api/v1/scripts/generate", json={"content_item_id": item_id})
     assert script_res.status_code == 200
     script_id = script_res.json()["id"]
@@ -110,7 +113,7 @@ async def test_export_blocks_failed_media_after_prior_final_approval(client: Asy
 
 
 @pytest.mark.asyncio
-async def test_full_export_and_publishing_flow(client: AsyncClient):
+async def test_full_export_and_publishing_flow(client: AsyncClient, db_session: AsyncSession, monkeypatch):
     test_id = uuid.uuid4().hex[:6]
 
     # 1. Create family
@@ -141,6 +144,8 @@ async def test_full_export_and_publishing_flow(client: AsyncClient):
     )
     assert item_res.status_code == 201
     item_id = item_res.json()["id"]
+    await prepare_script_inputs(db_session, item_id)
+    install_script_provider_fixture(monkeypatch)
 
     # 3. Generate script draft
     gen_res = await client.post(
@@ -284,7 +289,7 @@ async def test_full_export_and_publishing_flow(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_export_gate_blocks_without_qc_audit_or_unapproved(client: AsyncClient):
+async def test_export_gate_blocks_without_qc_audit_or_unapproved(client: AsyncClient, db_session: AsyncSession, monkeypatch):
     """Test that even if a script is approved, export is rejected if QC audit is missing or unapproved."""
     test_id = uuid.uuid4().hex[:6]
 
@@ -305,6 +310,8 @@ async def test_export_gate_blocks_without_qc_audit_or_unapproved(client: AsyncCl
             "viewer_value": "Step by step command tutorial.",
         },
     )).json()
+    await prepare_script_inputs(db_session, item["id"])
+    install_script_provider_fixture(monkeypatch)
 
     # Generate script and approve script only
     script = (await client.post("/api/v1/scripts/generate", json={"content_item_id": item["id"]})).json()
@@ -327,8 +334,8 @@ async def test_export_gate_blocks_without_qc_audit_or_unapproved(client: AsyncCl
 
 
 @pytest.mark.asyncio
-async def test_export_gate_blocks_stale_qc_audit_after_script_modified(client: AsyncClient, db_session: AsyncSession):
-    """Test that modifying a script after QC audit approval invalidates authorization (stale audit)."""
+async def test_export_gate_blocks_script_edit_after_final_approval(client: AsyncClient, db_session: AsyncSession, monkeypatch):
+    """Editing an approved script revokes its approval and blocks export immediately."""
     test_id = uuid.uuid4().hex[:6]
 
     fam = (await client.post(
@@ -347,6 +354,8 @@ async def test_export_gate_blocks_stale_qc_audit_after_script_modified(client: A
             "viewer_value": "Step by step command tutorial.",
         },
     )).json()
+    await prepare_script_inputs(db_session, item["id"])
+    install_script_provider_fixture(monkeypatch)
 
     # Generate and approve script
     script = (await client.post("/api/v1/scripts/generate", json={"content_item_id": item["id"]})).json()
@@ -367,36 +376,34 @@ async def test_export_gate_blocks_stale_qc_audit_after_script_modified(client: A
         json={"refinement_type": "shorten", "guidance": "Make hook punchier."},
     )
     assert refine_res.status_code == 200
+    assert refine_res.json()["script"]["is_approved"] is False
 
-    # Model a persisted edit only 500 ms after QC approval. Any post-approval edit is stale.
-    audit = await QualityGateRepository(db_session).get_audit_by_item(item['id'])
-    script_record = await db_session.get(ScriptDraft, script['id'])
-    assert audit is not None and audit.approved_at is not None
-    assert script_record is not None
-    script_record.updated_at = audit.approved_at + timedelta(milliseconds=500)
-    await db_session.commit()
-
-    # Attempt export -> must be rejected because script was modified after approval
+    # Attempt export -> script approval is revoked, so the old final-QC audit is unusable.
     exp_res = await client.post(f"/api/v1/export/{item['id']}")
     assert exp_res.status_code == 422
-    assert "Final Quality Gate Stale Block" in exp_res.json()["detail"]
-    assert "modified after final quality gate approval" in exp_res.json()["detail"]
+    assert "unapproved script" in exp_res.json()["detail"].lower()
 
-    # Re-evaluating and re-approving QC audit restores ability to export
-    await client.post(f"/api/v1/quality-gate/evaluate/{item['id']}")
-    reapp_res = await client.post(
-        f"/api/v1/quality-gate/approve/{item['id']}",
-        json={"approved_by": "Lead Editor", "notes": "Re-approved modified content"},
+    # Re-approving only the edited script must not revive the earlier final-QC approval.
+    script_reapproval = await client.post(
+        f"/api/v1/scripts/{script['id']}/approve", json={"notes": "Re-reviewed edited script"}
     )
-    assert reapp_res.status_code == 200
+    assert script_reapproval.status_code == 200
+    audit = await QualityGateRepository(db_session).get_audit_by_item(item["id"])
+    script_record = await db_session.get(ScriptDraft, script["id"])
+    assert audit is not None and audit.approved_at is not None
+    assert script_record is not None
+    subsecond_edit_at = audit.approved_at + timedelta(milliseconds=500)
+    script_record.updated_at = subsecond_edit_at
+    script_record.approved_at = subsecond_edit_at
+    await db_session.commit()
 
-    exp_res_ok = await client.post(f"/api/v1/export/{item['id']}")
-    assert exp_res_ok.status_code == 200
-    assert exp_res_ok.json()["content_item_id"] == item["id"]
+    stale_export = await client.post(f"/api/v1/export/{item['id']}")
+    assert stale_export.status_code == 422
+    assert "Final Quality Gate Stale Block" in stale_export.json()["detail"]
 
 
 @pytest.mark.asyncio
-async def test_export_gate_blocks_stale_qc_audit_on_new_script_draft(client: AsyncClient):
+async def test_export_gate_blocks_stale_qc_audit_on_new_script_draft(client: AsyncClient, db_session: AsyncSession, monkeypatch):
     """Test that generating a new script draft supersedes the previous QC audit."""
     test_id = uuid.uuid4().hex[:6]
 
@@ -416,6 +423,8 @@ async def test_export_gate_blocks_stale_qc_audit_on_new_script_draft(client: Asy
             "viewer_value": "Step by step command tutorial.",
         },
     )).json()
+    await prepare_script_inputs(db_session, item["id"])
+    install_script_provider_fixture(monkeypatch)
 
     # Draft 1
     script1 = (await client.post("/api/v1/scripts/generate", json={"content_item_id": item["id"]})).json()
@@ -435,7 +444,7 @@ async def test_export_gate_blocks_stale_qc_audit_on_new_script_draft(client: Asy
 
 
 @pytest.mark.asyncio
-async def test_repeated_export_requests(client: AsyncClient):
+async def test_repeated_export_requests(client: AsyncClient, db_session: AsyncSession, monkeypatch):
     """Test that repeated export requests on an approved item succeed and update the package."""
     test_id = uuid.uuid4().hex[:6]
 
@@ -455,6 +464,8 @@ async def test_repeated_export_requests(client: AsyncClient):
             "viewer_value": "Step by step command tutorial.",
         },
     )).json()
+    await prepare_script_inputs(db_session, item["id"])
+    install_script_provider_fixture(monkeypatch)
 
     script = (await client.post("/api/v1/scripts/generate", json={"content_item_id": item["id"]})).json()
     await client.post(f"/api/v1/scripts/{script['id']}/approve", json={"notes": "Approved"})
@@ -476,4 +487,3 @@ async def test_repeated_export_requests(client: AsyncClient):
     assert pkg1["package_slug"] == pkg2["package_slug"]
     assert len(pkg2["checksum"]) == 64
     assert pkg1["files"] == pkg2["files"]
-

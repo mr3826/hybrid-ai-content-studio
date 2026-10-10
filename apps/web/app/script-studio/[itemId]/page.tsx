@@ -503,6 +503,11 @@ export default function ScriptStudioPage() {
                             {section.visual_cue}
                           </p>
                         )}
+                        {section.evidence_category && section.evidence_category !== "context" && (
+                          <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                            {section.evidence_category.replace(/_/g, " ")}
+                          </span>
+                        )}
 
                         {/* Linked Claims Badges */}
                         {section.linked_claim_ids.length > 0 && (
@@ -545,6 +550,39 @@ export default function ScriptStudioPage() {
 
           {/* RIGHT COLUMN: Quality + Revisions + Approve */}
           <div className="col-span-1 lg:col-span-3 order-2 lg:order-3 overflow-y-auto space-y-4">
+
+            {/* AI Execution Record */}
+            <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-4 space-y-2">
+              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-purple-400" />
+                AI Generation
+              </h3>
+              {script.generation_metadata ? (
+                <>
+                  <p className={`text-xs font-semibold ${script.generation_metadata.approval_eligible ? "text-emerald-300" : "text-amber-300"}`}>
+                    {script.generation_metadata.approval_eligible ? "Live provider output" : "Mock or legacy preview — cannot be approved"}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    {script.generation_metadata.provider} · {script.generation_metadata.model}
+                    {script.generation_metadata.fallback_used && " · historical fallback metadata"}
+                  </p>
+                  {(script.generation_metadata.total_tokens != null || script.generation_metadata.estimated_cost_usd != null) && (
+                    <p className="text-[11px] text-slate-500">
+                      {script.generation_metadata.total_tokens ?? "—"} tokens · ${Number(script.generation_metadata.estimated_cost_usd ?? 0).toFixed(6)} estimated
+                    </p>
+                  )}
+                  {!!script.generation_metadata.warnings?.length && (
+                    <ul className="space-y-1 pt-1">
+                      {script.generation_metadata.warnings.map((warning, index) => (
+                        <li key={index} className="text-[10px] text-amber-300/80">• {warning}</li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              ) : (
+                <p className="text-[11px] text-amber-300">No provider provenance is recorded for this legacy script.</p>
+              )}
+            </div>
 
             {/* Quality Dimensions */}
             <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-4 space-y-3">
@@ -675,8 +713,9 @@ export default function ScriptStudioPage() {
                   Human Quality Gate
                 </h3>
                 <p className="text-[11px] text-slate-500 leading-relaxed">
-                  Final approval transitions this script to <span className="text-purple-300 font-semibold">SCRIPT_APPROVED</span> and 
-                  locks the content item status. Blocking quality issues require an explicit override reason.
+                  {script.generation_metadata?.approval_eligible
+                    ? <>Final approval transitions this script to <span className="text-purple-300 font-semibold">SCRIPT_APPROVED</span> and locks the content item status. Blocking quality issues require an explicit override reason.</>
+                    : "This preview has no verified live-provider provenance. Generate a Gemini script before requesting approval."}
                 </p>
                 <button
                   onClick={() => {
@@ -686,7 +725,7 @@ export default function ScriptStudioPage() {
                       handleApprove();
                     }
                   }}
-                  disabled={approving || !quality}
+                  disabled={approving || !quality || !script.generation_metadata?.approval_eligible}
                   className="w-full px-4 py-2.5 rounded-xl font-semibold text-white bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-all text-sm"
                 >
                   {approving ? (

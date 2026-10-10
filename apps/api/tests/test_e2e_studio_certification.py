@@ -31,6 +31,7 @@ from app.api.v1 import media as media_api
 from app.models.niche import NicheProfile, SINGLETON_NICHE_ID
 from app.models.brand import BrandProfile, SINGLETON_BRAND_ID
 from app.engines.core.registry import engine_registry
+from script_test_utils import install_script_provider_fixture, prepare_script_inputs
 
 
 def _write_media_fixture_png(path: Path, color: tuple[int, int, int]) -> Path:
@@ -316,6 +317,9 @@ async def test_e2e_24_step_creator_lifecycle(
             "content_pillar": "Local Agent Benchmarks",
             "original_value_type": "benchmark",
             "summary": "Core experiment validating local LLM throughput, power draw, and cost amortization.",
+            "topic_id": opp_id,
+            "research_packet_id": packet_id,
+            "originality_plan_id": orig_plan_id,
             "research_cost": 2.00,
             "experiment_cost": 0.00,
             "ai_cost": 0.40,
@@ -325,6 +329,11 @@ async def test_e2e_24_step_creator_lifecycle(
     assert family_res.status_code == 201
     family = family_res.json()
     family_id = family["id"]
+    family_approval = await client.post(
+        f"/api/v1/content-families/{family_id}/approve",
+        json={"reviewer": "lead_editor"},
+    )
+    assert family_approval.status_code == 200, family_approval.text
 
     item_res = await client.post(
         f"/api/v1/content-families/{family_id}/items",
@@ -336,6 +345,7 @@ async def test_e2e_24_step_creator_lifecycle(
             "hook_type": "bold_claim",
             "original_value_connection": "Proprietary wattmeter and thermal camera measurements.",
             "viewer_value": "Actionable command-line config flags for local llama.cpp runners.",
+            "claim_ids": [claim_id],
         },
     )
     assert item_res.status_code == 201
@@ -345,6 +355,9 @@ async def test_e2e_24_step_creator_lifecycle(
     # =========================================================================
     # Step 11: Evidence-Grounded Script Draft Generation & Refinement
     # =========================================================================
+    # This provider-contract fixture exercises API transitions only; the separate
+    # live-provider smoke is the production verification for this phase.
+    install_script_provider_fixture(monkeypatch)
     gen_script_res = await client.post(
         "/api/v1/scripts/generate",
         json={"content_item_id": item_id, "target_duration_sec": 45},
@@ -753,7 +766,7 @@ async def test_e2e_singleton_niche_and_brand_invariants(client: AsyncClient, db_
 
 
 @pytest.mark.asyncio
-async def test_e2e_human_gates_strict_enforcement(client: AsyncClient):
+async def test_e2e_human_gates_strict_enforcement(client: AsyncClient, db_session: AsyncSession, monkeypatch):
     """
     Enforces Invariant 5: Human Quality Gates.
     Automated bypasses are strictly prevented by the API at each stage.
@@ -791,8 +804,16 @@ async def test_e2e_human_gates_strict_enforcement(client: AsyncClient):
     assert exp_block_1.status_code == 422
     assert "No script draft exists" in exp_block_1.json()["detail"]
 
-    # Generate draft
+    # Generation is blocked before approval and verified research are present.
+    blocked_generation = await client.post("/api/v1/scripts/generate", json={"content_item_id": item_id})
+    assert blocked_generation.status_code == 409
+    assert "Approve this content family" in blocked_generation.json()["detail"]
+
+    # A separately provisioned test fixture can then exercise downstream script gates.
+    await prepare_script_inputs(db_session, item_id)
+    install_script_provider_fixture(monkeypatch)
     gen_res = await client.post("/api/v1/scripts/generate", json={"content_item_id": item_id})
+    assert gen_res.status_code == 200, gen_res.text
     script_id = gen_res.json()["id"]
 
     # Gate 2: Export blocked when script is not approved

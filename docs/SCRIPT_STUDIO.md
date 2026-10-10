@@ -1,8 +1,17 @@
-# Script Studio — Phase 12 Documentation
+# Script Studio — Evidence-Grounded Generation and Review
 
 ## Overview
 
 The **Evidence-Driven Script Studio** is the core content production module of the Fresh Local AI Content Studio. It transforms verified research, evidence claims, original experiments, brand memory, and niche profile into structured, multi-format scripts ready for human approval.
+
+## Current AI Provider and Release Behavior
+
+- Google Gemini is the only live LLM provider. The selected model is stable `gemini-3.8-flash`, configurable with `GEMINI_MODEL`; credential setup and cost controls are documented in [AI Provider Configuration](AI_PROVIDER_CONFIGURATION.md).
+- Generation receives the content format, platform, duration, brand guidance, originality contribution, verified research context, and selected evidence claims. It returns structured sections using Gemini's JSON response format.
+- The server validates the complete response, section order, duration and pacing, brand rules, and evidence links before persisting a draft. A linked claim must be among the content item's selected verified claims; the provider schema does not replace this local check.
+- Gemini failures are returned with typed recovery guidance. The application does not retry automatically or fall back to another paid provider, and a failed response does not create a draft.
+- `AI_MOCK_MODE=true` uses deterministic local output. The UI labels mock or legacy output, mock drafts remain ineligible for script approval, and final media quality/export gates reject mock output.
+- Every generated draft remains unapproved until a human completes Script Studio review; final media QC remains a separate approval gate.
 
 ## Architecture
 

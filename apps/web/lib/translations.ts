@@ -240,7 +240,7 @@ export const translations: Record<Locale, Translations> = {
     },
     ai: {
       title: "এআই ইঞ্জিন ও মডেল কন্ট্রোল",
-      subtitle: "জেমিনাই, কুয়েন এবং ব্যাকআপ মডেল রাউটিং, টোকেন খরচ ও লগ।",
+      subtitle: "লাইভ জেনারেশনে শুধু Gemini; Mock mode-এ সম্পূর্ণ অফলাইন ডেভেলপমেন্ট।",
       playground: "প্লেগ্রাউন্ড",
       telemetry: "টেলিমিতি ও লগ",
       architecture: "আর্কিটেকচার",
@@ -992,7 +992,7 @@ export const translations: Record<Locale, Translations> = {
     },
     ai: {
       title: "AI Provider Studio",
-      subtitle: "Gemini primary, Qwen fallback, mock adapters, telemetry & cost tracking.",
+      subtitle: "Gemini is the only live provider; Mock mode keeps local development offline.",
       playground: "Playground",
       telemetry: "Telemetry & Logs",
       architecture: "Architecture",

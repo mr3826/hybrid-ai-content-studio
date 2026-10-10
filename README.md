@@ -87,7 +87,7 @@ banned clichés, visual identity, platform adaptations     dates, entities, flag
   ┌───────────────────────┴───────────────────────────────────┬───────────────────────┐
   ▼                                                           ▼                       ▼
 08. AI PROVIDER ENGINE                                    09. ORIGINALITY ENGINE  10. CONTENT FAMILIES
-Pluggable Gemini primary, Qwen fallback, mock mode,       "What are WE adding?"   Parent-child structure,
+Gemini live generation, offline mock,                     "What are WE adding?"   Parent-child structure,
 token cost tracking & latency telemetry                   gate, 12 test formats,  shared research,
                                                           quarantine summaries    amortized economics
   │                                                           │                       │
@@ -361,8 +361,10 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8400
 
 # Cost & Provider Controls (Mock mode active by default)
 AI_MOCK_MODE=true
+# Gemini is the only live provider. On Windows, set CONTENT_STUDIO_GEMINI
+# in the user/system environment. GEMINI_KEY and GOOGLE_API_KEY remain supported.
 GEMINI_API_KEY=
-QWEN_API_KEY=
+GEMINI_MODEL=gemini-3.8-flash
 TTS_MOCK_MODE=true
 FFMPEG_BINARY=ffmpeg
 ```
@@ -479,11 +481,13 @@ npm run build
 
 ## 10. Troubleshooting & FAQ
 
-#### Q: Can I run this completely offline without any internet connection?
-**A:** Yes! With `AI_MOCK_MODE=true` and `TTS_MOCK_MODE=true`, the entire studio runs 100% offline on localhost. When connecting live AI models (Gemini / Qwen), only outbound HTTPS calls are made to those specific LLM endpoints.
+#### Q: Can I run AI and media generation offline?
+**A:** Set `AI_MOCK_MODE=true` and `TTS_MOCK_MODE=true` to use the deterministic local AI and speech adapters. Live script generation requires `AI_MOCK_MODE=false`, a Gemini credential, and outbound HTTPS access to Google's Gemini API. Other studio features such as RSS discovery may also need internet access.
 
-#### Q: How do I switch between mock mode and real LLM models?
-**A:** Edit your `.env` file. Set `AI_MOCK_MODE=false`, supply your `GEMINI_API_KEY` or `QWEN_API_KEY`, and restart the API server. You can also monitor model latency and token costs live at `/ai`.
+#### Q: How are AI providers configured?
+**A:** `AI_MOCK_MODE=true` uses the deterministic local adapter and makes no Gemini request. Live mode uses Gemini only; set `AI_MOCK_MODE=false`, configure `GEMINI_MODEL` (default `gemini-3.8-flash`), and set the Windows user/system variable `CONTENT_STUDIO_GEMINI`, then restart the API and worker. Existing `GEMINI_API_KEY`, `GEMINI_KEY`, and `GOOGLE_API_KEY` environment aliases are also supported. The Gemini credential is sent in the provider authorization header and never returned through status or telemetry. There is no automatic provider retry or fallback. Script output must pass the server-side schema, evidence, pacing, and brand checks before it can be saved, and human approval remains required. See [Gemini provider configuration](docs/AI_PROVIDER_CONFIGURATION.md) for model, cost, and smoke-test details.
+
+The normal test suite is offline and blocks unexpected requests to AI-provider hosts. The separate live smoke uses `uv run --locked pytest --run-live-provider-smoke apps/api/tests/test_live_script_provider_smoke.py -q -s`; it first checks the configured Gemini model, then makes one bounded script-generation request and verifies persisted provenance and unapproved status. Do not include secrets in `.env.example`, logs, or test output.
 
 #### Q: Why are there no direct "Publish to YouTube" buttons that upload automatically?
 **A:** Under **Invariant 6 (Manual-Publish-First)**, direct social API uploads are intentionally excluded in V1. Social platform APIs often break, revoke developer keys, restrict reach on API-uploaded content, or encourage unattended auto-posting. The studio uses one-click authenticated browser launchers and formatted clipboard copy tools, ensuring the creator always maintains full control.

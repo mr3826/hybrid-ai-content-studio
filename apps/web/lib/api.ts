@@ -1391,6 +1391,34 @@ export interface AIProviderStatus {
   budget_exceeded: boolean;
 }
 
+export type AIProviderFailureCategory =
+  | "rate_limit"
+  | "timeout"
+  | "server_error"
+  | "connection_error"
+  | "malformed_output"
+  | "output_schema_validation"
+  | "authentication"
+  | "authorization"
+  | "safety_refusal"
+  | "invalid_request"
+  | "missing_credentials"
+  | "budget_exceeded"
+  | "provider_error";
+
+export interface AIProviderAttempt {
+  provider: string;
+  model: string;
+  success: boolean;
+  failure_category?: AIProviderFailureCategory | null;
+  error_message?: string | null;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  cost: number;
+  latency_ms: number;
+}
+
 export interface AIResponse {
   text: string;
   structured_data?: any;
@@ -1409,6 +1437,10 @@ export interface AIResponse {
   fallback_reason?: string;
   primary_provider?: string;
   primary_error?: string;
+  primary_model?: string;
+  primary_failure_category?: AIProviderFailureCategory | null;
+  failure_category?: AIProviderFailureCategory | null;
+  provider_attempts?: AIProviderAttempt[];
 }
 
 export interface AIInvocationLog {
@@ -2042,6 +2074,7 @@ export interface ScriptSectionDetail {
   heading: string;
   narration: string;
   visual_cue: string;
+  evidence_category: string;
   estimated_seconds: number;
   word_count: number;
   linked_claim_ids: string[];
@@ -2071,6 +2104,23 @@ export interface ScriptQualityVerdict {
   summary: string;
 }
 
+export interface ScriptGenerationMetadata {
+  generation_mode: "live" | "mock" | string;
+  provider: string;
+  model: string;
+  approval_eligible: boolean;
+  fallback_used: boolean;
+  fallback_reason?: string | null;
+  primary_provider?: string | null;
+  primary_error?: string | null;
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  total_tokens?: number | null;
+  estimated_cost_usd?: number | null;
+  latency_ms?: number | null;
+  warnings?: string[];
+}
+
 export interface ScriptDraft {
   id: string;
   content_item_id: string;
@@ -2087,6 +2137,7 @@ export interface ScriptDraft {
   approved_at: string | null;
   override_reason: string | null;
   quality_scores: ScriptQualityVerdict | null;
+  generation_metadata: ScriptGenerationMetadata | null;
   sections: ScriptSectionDetail[];
   revisions: ScriptRevisionSummary[];
 }
@@ -3577,7 +3628,6 @@ export async function testRestoreBackup(
     body: JSON.stringify(payload || { dry_run: true }),
   });
 }
-
 
 
 

@@ -33,6 +33,7 @@ class MockAIAdapter(BaseAIAdapter):
                 prompt_version=request.prompt_version,
                 success=False,
                 error_message="HTTP 429: Too Many Requests (Rate limit exceeded)",
+                failure_category="rate_limit",
                 latency_ms=latency_ms,
             )
 
@@ -46,6 +47,7 @@ class MockAIAdapter(BaseAIAdapter):
                 prompt_version=request.prompt_version,
                 success=False,
                 error_message="HTTP 503: Service Unavailable (Model overloaded)",
+                failure_category="timeout" if request.simulate_failure == "timeout" else "server_error",
                 latency_ms=latency_ms,
             )
 
@@ -80,7 +82,12 @@ class MockAIAdapter(BaseAIAdapter):
     async def generate_structured(self, request: StructuredGenerationRequest) -> AIResponse:
         start_time = time.perf_counter()
 
-        if request.simulate_failure in ("server_error", "rate_limit"):
+        if request.simulate_failure in ("server_error", "rate_limit", "timeout"):
+            failure_category = {
+                "rate_limit": "rate_limit",
+                "timeout": "timeout",
+                "server_error": "server_error",
+            }[request.simulate_failure]
             return AIResponse(
                 text="",
                 provider=self.provider_id,
@@ -89,6 +96,7 @@ class MockAIAdapter(BaseAIAdapter):
                 prompt_version=request.prompt_version,
                 success=False,
                 error_message=f"Technical failure: {request.simulate_failure}",
+                failure_category=failure_category,
                 latency_ms=(time.perf_counter() - start_time) * 1000,
             )
 
@@ -104,25 +112,32 @@ class MockAIAdapter(BaseAIAdapter):
                 prompt_version=request.prompt_version,
                 success=False,
                 error_message="JSONDecodeError: Expecting property name enclosed in double quotes",
+                failure_category="malformed_output",
                 latency_ms=(time.perf_counter() - start_time) * 1000,
             )
 
-        # Build synthetic structured object matching schema properties if provided
-        schema_props = request.response_schema.get("properties", {})
-        structured_output: Dict[str, Any] = {}
+        # Script Studio supplies a server-built preview fixture in mock mode.
+        # It is never used by the live provider adapters and stays visibly unverified.
+        mock_response = request.metadata.get("_mock_response")
+        if isinstance(mock_response, dict):
+            structured_output = mock_response
+        else:
+            # Build a deterministic flat object for isolated provider tests.
+            schema_props = request.response_schema.get("properties", {})
+            structured_output: Dict[str, Any] = {}
 
-        for prop_name, prop_spec in schema_props.items():
-            prop_type = prop_spec.get("type", "string")
-            if prop_type == "string":
-                structured_output[prop_name] = f"Mock {prop_name} value"
-            elif prop_type in ("integer", "number"):
-                structured_output[prop_name] = 85
-            elif prop_type == "boolean":
-                structured_output[prop_name] = True
-            elif prop_type == "array":
-                structured_output[prop_name] = [f"Item 1", f"Item 2"]
-            else:
-                structured_output[prop_name] = {}
+            for prop_name, prop_spec in schema_props.items():
+                prop_type = prop_spec.get("type", "string")
+                if prop_type == "string":
+                    structured_output[prop_name] = f"Mock {prop_name} value"
+                elif prop_type in ("integer", "number"):
+                    structured_output[prop_name] = 85
+                elif prop_type == "boolean":
+                    structured_output[prop_name] = True
+                elif prop_type == "array":
+                    structured_output[prop_name] = ["Item 1", "Item 2"]
+                else:
+                    structured_output[prop_name] = {}
 
         if not structured_output:
             structured_output = {
@@ -156,7 +171,12 @@ class MockAIAdapter(BaseAIAdapter):
     async def analyze(self, request: AnalyzeRequest) -> AIResponse:
         start_time = time.perf_counter()
 
-        if request.simulate_failure in ("server_error", "rate_limit"):
+        if request.simulate_failure in ("server_error", "rate_limit", "timeout"):
+            failure_category = {
+                "rate_limit": "rate_limit",
+                "timeout": "timeout",
+                "server_error": "server_error",
+            }[request.simulate_failure]
             return AIResponse(
                 text="",
                 provider=self.provider_id,
@@ -165,6 +185,7 @@ class MockAIAdapter(BaseAIAdapter):
                 prompt_version=request.prompt_version,
                 success=False,
                 error_message=f"Technical failure: {request.simulate_failure}",
+                failure_category=failure_category,
                 latency_ms=(time.perf_counter() - start_time) * 1000,
             )
 

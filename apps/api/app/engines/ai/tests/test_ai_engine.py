@@ -5,6 +5,7 @@ from app.engines.ai.contracts import (
     StructuredGenerationRequest,
     AnalyzeRequest,
 )
+from app.core.config import settings
 from app.engines.core.base import EngineContext
 
 
@@ -15,9 +16,7 @@ async def test_ai_manifest_and_rules():
     assert engine.manifest.name == "AI Provider Engine"
     assert "PromptRequest" in engine.manifest.inputs
     assert "ModelResponse" in engine.manifest.outputs
-    assert engine.rules.get("primary_provider") == "gemini"
-    assert engine.rules.get("fallback_provider") == "qwen"
-    assert engine.rules.get("fallback_enabled") is True
+    assert set(engine.rules.get("cost_rates", {})) == {"gemini", "mock"}
 
 
 @pytest.mark.asyncio
@@ -84,7 +83,7 @@ async def test_ai_analyze_mock():
 
 
 @pytest.mark.asyncio
-async def test_technical_fallback():
+async def test_simulated_failure_returns_without_fallback():
     engine = AIProviderEngine()
 
     # Simulate technical 503 error on primary
@@ -96,15 +95,15 @@ async def test_technical_fallback():
     )
     resp = await engine.generate_text(req)
 
-    # In mock mode, fallback adapter succeeds and records fallback metadata
-    assert resp.success is True
-    assert resp.fallback_used is True
-    assert "503" in (resp.fallback_reason or "")
-    assert resp.primary_provider == "mock"
+    assert resp.success is False
+    assert resp.provider == "mock"
+    assert resp.fallback_used is False
+    assert resp.failure_category == "server_error"
+    assert len(resp.provider_attempts) == 1
 
 
 @pytest.mark.asyncio
-async def test_schema_error_fallback():
+async def test_schema_error_returns_without_retry():
     engine = AIProviderEngine()
 
     schema = {"type": "object", "properties": {"verdict": {"type": "string"}}}
@@ -116,24 +115,24 @@ async def test_schema_error_fallback():
     )
     resp = await engine.generate_structured(req)
 
-    assert resp.success is True
-    assert resp.fallback_used is True
-    assert "JSONDecodeError" in (resp.fallback_reason or "")
+    assert resp.success is False
+    assert resp.provider == "mock"
+    assert resp.fallback_used is False
+    assert resp.failure_category == "malformed_output"
+    assert len(resp.provider_attempts) == 1
 
 
 @pytest.mark.asyncio
-async def test_forbidden_factual_fallback_rejection():
+async def test_legacy_provider_selection_is_rejected(monkeypatch):
     engine = AIProviderEngine()
-
-    # If the error is an editorial/factual rejection, fallback must NOT trigger
-    is_tech = engine._is_technical_or_schema_failure("Insufficient_evidence provided in source packet")
-    assert is_tech is False
-
-    is_tech_claim = engine._is_technical_or_schema_failure("Unsupported_claim detected by verification policy")
-    assert is_tech_claim is False
-
-    is_real_tech = engine._is_technical_or_schema_failure("HTTP 429: Too Many Requests")
-    assert is_real_tech is True
+    monkeypatch.setattr(settings, "AI_MOCK_MODE", False)
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-gemini-key")
+    response = await engine.generate_text(
+        TextGenerationRequest(prompt="No legacy provider", preferred_provider="openai")
+    )
+    assert response.success is False
+    assert response.failure_category == "invalid_request"
+    assert response.provider == "none"
 
 
 @pytest.mark.asyncio

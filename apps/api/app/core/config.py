@@ -1,14 +1,31 @@
 import os
 from pathlib import Path
 from typing import Any, List, Optional, Union
-from pydantic import field_validator, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _resolve_gemini_api_key(configured_value: Any, environ: Any = None) -> Optional[str]:
+    """Resolve Gemini credentials with explicit process variables ahead of dotenv."""
+    environment = os.environ if environ is None else environ
+    candidates = (
+        environment.get("CONTENT_STUDIO_GEMINI"),
+        environment.get("GEMINI_API_KEY"),
+        environment.get("GEMINI_KEY"),
+        environment.get("GOOGLE_API_KEY"),
+        configured_value,
+    )
+    for candidate in candidates:
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip()
+    return None
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        env_ignore_empty=True,
         extra="ignore",
     )
 
@@ -37,23 +54,19 @@ class Settings(BaseSettings):
     FFMPEG_BINARY: str = "ffmpeg"
 
     # AI Provider Settings
-    GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-2.5-flash"
-    QWEN_API_KEY: Optional[str] = None
-    QWEN_API_BASE: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-    QWEN_MODEL: str = "qwen-plus"
-    AI_PRIMARY_PROVIDER: str = "gemini"
-    AI_FALLBACK_PROVIDER: str = "qwen"
-    AI_FALLBACK_ENABLED: bool = True
+    GEMINI_API_KEY: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("GEMINI_API_KEY", "GEMINI_KEY", "GOOGLE_API_KEY"),
+    )
+    GEMINI_MODEL: str = "gemini-3.8-flash"
 
     @model_validator(mode="before")
     @classmethod
     def populate_defaults_from_env(cls, values: Any) -> Any:
         if isinstance(values, dict):
-            if not values.get("GEMINI_API_KEY"):
-                values["GEMINI_API_KEY"] = os.getenv("GEMINI_KEY") or os.getenv("GOOGLE_API_KEY")
-            if not values.get("QWEN_API_KEY"):
-                values["QWEN_API_KEY"] = os.getenv("QWEN_API_KEY")
+            values["GEMINI_API_KEY"] = _resolve_gemini_api_key(
+                values.get("GEMINI_API_KEY")
+            )
         return values
 
     # Manual Publishing Platform Default URLs

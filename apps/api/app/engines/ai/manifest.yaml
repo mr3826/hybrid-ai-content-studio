@@ -1,7 +1,7 @@
 id: "ai"
 name: "AI Provider Engine"
 version: "1.0.0"
-description: "Pluggable LLM provider adapters (Gemini, Qwen) with technical fallback and token cost logging."
+description: "Gemini live generation and deterministic offline mock with token cost logging."
 enabled: true
 inputs:
   - "PromptRequest"

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict
+import httpx
 from app.engines.ai.contracts import (
     TextGenerationRequest,
     StructuredGenerationRequest,
@@ -41,3 +42,29 @@ class BaseAIAdapter(ABC):
         prompt_rate = self.cost_rates.get("prompt_per_million", 0.0) / 1_000_000.0
         completion_rate = self.cost_rates.get("completion_per_million", 0.0) / 1_000_000.0
         return round((prompt_tokens * prompt_rate) + (completion_tokens * completion_rate), 6)
+
+    @staticmethod
+    def classify_http_status(status_code: int) -> str:
+        """Classify an HTTP response without inspecting provider prose."""
+        if status_code == 429:
+            return "rate_limit"
+        if status_code == 408:
+            return "timeout"
+        if status_code in {500, 502, 503, 504}:
+            return "server_error"
+        if status_code == 401:
+            return "authentication"
+        if status_code == 403:
+            return "authorization"
+        if status_code in {400, 404, 422}:
+            return "invalid_request"
+        return "provider_error"
+
+    @staticmethod
+    def classify_transport_error(error: Exception) -> str:
+        """Classify only known timeout and network transport failures as retryable."""
+        if isinstance(error, httpx.TimeoutException):
+            return "timeout"
+        if isinstance(error, httpx.NetworkError):
+            return "connection_error"
+        return "provider_error"

@@ -1,0 +1,56 @@
+# AI Provider Configuration
+
+## Supported providers
+
+Live generation uses Google Gemini only. `AI_MOCK_MODE=true` routes generation to the deterministic local adapter and makes no Gemini request. Live mode sends one provider request per operation, with a 90-second request timeout; errors are returned with a typed category and recovery guidance. There is no automatic retry or provider fallback.
+
+The default model is `gemini-3.8-flash`, configured by `GEMINI_MODEL`. Google lists this as a stable Gemini 3 Flash model and documents structured JSON output for the Generate Content API. Gemini 3 requests use `thinkingLevel: low`: Gemini counts internal thought tokens against `maxOutputTokens`, and Google's guidance recommends a lower thinking level to reduce latency and truncation. Other model families do not receive this Gemini 3-only field. The adapter uses the current `generateContent` `generationConfig.responseFormat.text.schema` contract, filters Pydantic-only keywords to the documented JSON Schema subset, and the engine enforces the full local JSON Schema before script validation or persistence.
+
+## Credential setup
+
+Set `CONTENT_STUDIO_GEMINI` in the Windows user or system environment. Restart both the API and worker after changing environment variables. Existing installations can use `GEMINI_API_KEY`, `GEMINI_KEY`, or `GOOGLE_API_KEY`; the `.env` `GEMINI_API_KEY` value is the final fallback. `env_ignore_empty` prevents the blank `.env.example` placeholder from replacing a valid environment credential.
+
+The API sends the key in Google's `x-goog-api-key` request header. Status endpoints, script metadata, and invocation telemetry do not return or store the credential. The repository must not contain real credentials or `.env` files.
+
+Example `.env` values:
+
+```dotenv
+AI_MOCK_MODE=true
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.8-flash
+```
+
+Set `AI_MOCK_MODE=false` only when a live Gemini credential is configured. Keep mock mode enabled for offline development and automated tests.
+
+## Model and cost
+
+The selected release model is the stable `gemini-3.8-flash`. Google's catalog lists both `gemini-3.8-flash` and `gemini-3.6-flash` as stable; 3.8 was selected as the newer stable Flash release with structured outputs. Its low/medium/high thinking controls are documented, and the live acceptance smoke confirmed this account could call `generateContent`. `gemini-3.6-flash` was not sent a live request because the selected model completed the required acceptance flow. `GEMINI_MODEL` remains configurable for a deliberate manual change; the application does not switch models to work around access or quota failures.
+
+The AI engine's current Gemini estimates use the introductory Gemini 3.8 Flash standard rates documented for use through December 31, 2026: **$0.75 per million input tokens** and **$3.75 per million output tokens**. Google's published standard rates change to $1.50 / $7.50 per million tokens beginning January 1, 2027. Update `apps/api/app/engines/ai/rules.yaml` before that date so budget estimates and telemetry stay aligned with the active price schedule. These are estimates; the provider's actual account billing is authoritative.
+
+Daily and per-content-family maximum cost estimates are checked before generation. A rate-limit response is returned as a quota/rate-limit error and the operation is not retried. The Gemini API model lookup confirms model access but does not reserve or guarantee generation quota.
+
+## Live acceptance smoke
+
+The live smoke is a separate, explicit opt-in and requires `Settings.GEMINI_API_KEY` to resolve a credential from `CONTENT_STUDIO_GEMINI`, `GEMINI_API_KEY`, `GEMINI_KEY`, `GOOGLE_API_KEY`, or `.env`. It checks the application setting rather than requiring a particular process-variable name, so a valid Windows alias is not mistaken for a missing credential.
+
+Run:
+
+```powershell
+uv run --locked pytest --run-live-provider-smoke apps/api/tests/test_live_script_provider_smoke.py -q -s
+```
+
+The smoke first performs a model availability lookup. If it succeeds, the test makes one bounded `generateContent` request through the Script Studio endpoint and checks that the result uses verified evidence, carries research packet/version and originality plan provenance, is persisted with Gemini metadata, and remains unapproved. It performs no second generation request after authentication, quota, network, safety, or schema failure. The normal test suite does not run this smoke and blocks unexpected requests to known AI provider hosts.
+
+## Current acceptance status — 2026-10-10
+
+The opt-in live acceptance smoke passed with `gemini-3.8-flash`. Model preflight confirmed `generateContent`; one structured script request returned HTTP 200, passed local schema, evidence, pacing, and brand validation, persisted successfully, and read back with the selected claim, research packet/version, originality plan, provider/model metadata, and unapproved status. The response reported **1,703 total tokens** and an estimated cost of **$0.002777**; this is application telemetry, not a billing statement. Earlier requests against the superseded payload and default thinking level failed without persisting drafts. The normal application path still makes one provider request per operation and has no automatic retry or provider fallback. See [Phase status](PHASE_STATUS.md) for the full verification record.
+
+## Official Google references
+
+- [Gemini 3.8 Flash model](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash)
+- [Gemini model catalog](https://ai.google.dev/gemini-api/docs/models)
+- [Gemini thinking and output-token behavior](https://ai.google.dev/gemini-api/docs/generate-content/thinking)
+- [Structured outputs](https://ai.google.dev/gemini-api/docs/structured-output)
+- [Generate Content API reference](https://ai.google.dev/api/generate-content)
+- [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing)

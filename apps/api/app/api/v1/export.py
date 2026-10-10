@@ -17,7 +17,7 @@ from app.engines.export.contracts import ExportEngineInput
 from app.engines.export.engine import ExportEngine
 from app.models.brand import BrandProfile, SINGLETON_BRAND_ID
 from app.models.content_family import ContentFamily, ContentItem
-from app.models.evidence import Claim, EvidenceSource
+from app.models.evidence import Claim, ClaimEvidence, EvidenceSource
 from app.models.export import ExportPackage, PlatformPublication
 from app.models.media import MediaPackage
 from app.models.niche import NicheProfile, SINGLETON_NICHE_ID
@@ -216,6 +216,21 @@ async def create_export_package(
 
     # 4. Fetch Sources & Claims
     sources: List[Dict[str, Any]] = []
+    claim_quotes: Dict[str, List[str]] = {}
+    source_quotes: Dict[str, List[str]] = {}
+    claim_ids = [selection.claim_id for selection in item.evidence_selections]
+    if claim_ids:
+        evidence_res = await db.execute(
+            select(ClaimEvidence).where(ClaimEvidence.claim_id.in_(claim_ids))
+        )
+        for evidence in evidence_res.scalars().all():
+            quote = (evidence.quote or "").strip()
+            if not quote:
+                continue
+            claim_quotes.setdefault(evidence.claim_id, []).append(quote)
+            if evidence.source_id:
+                source_quotes.setdefault(evidence.source_id, []).append(quote)
+
     if item.family and item.family.research_packet:
         sources_stmt = select(EvidenceSource).where(EvidenceSource.packet_id == item.family.research_packet_id)
         sources_res = await db.execute(sources_stmt)
@@ -224,30 +239,29 @@ async def create_export_package(
                 "title": s.title,
                 "url": s.url,
                 "source_type": s.source_type,
-                "author_or_org": s.author_or_org,
-                "excerpt": s.key_excerpt,
+                "author_or_org": s.author or s.domain,
+                "excerpt": " ".join(source_quotes.get(s.id, [])[:3]),
             })
 
     claims: List[Dict[str, Any]] = []
     if item.evidence_selections:
-        claim_ids = [sel.claim_id for sel in item.evidence_selections]
         claims_stmt = select(Claim).where(Claim.id.in_(claim_ids))
         claims_res = await db.execute(claims_stmt)
         for c in claims_res.scalars().all():
             claims.append({
-                "claim_text": c.claim_text,
+                "claim_text": c.text,
                 "claim_type": c.claim_type,
-                "verification_status": c.verification_status,
-                "quote_or_metric": c.quote_or_metric,
+                "verification_status": "verified" if c.is_verified else "unverified",
+                "quote_or_metric": " ".join(claim_quotes.get(c.id, [])[:3]),
             })
 
     experiments: List[Dict[str, Any]] = []
     if item.family and item.family.primary_experiment:
         exp = item.family.primary_experiment
         experiments.append({
-            "name": exp.name,
+            "name": exp.title,
             "hypothesis": exp.hypothesis,
-            "outcome": exp.status,
+            "outcome": exp.conclusion or "",
         })
 
     # 5. Build section dictionaries
