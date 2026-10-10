@@ -31,6 +31,7 @@ import {
   runOpportunities,
 } from "@/lib/api";
 import { useLanguage } from "@/lib/LanguageContext";
+import { CreatorWorkflow } from "@/components/CreatorWorkflow";
 
 export default function CreatorCockpitPage() {
   const { t } = useLanguage();
@@ -214,6 +215,13 @@ export default function CreatorCockpitPage() {
           </button>
         </div>
       )}
+
+      <CreatorWorkflow
+        summary={summary}
+        studioStatus={studioStatus}
+        activeFamiliesCount={activeFamiliesCount}
+        loading={loading}
+      />
 
       {/* Decision Metrics Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">

@@ -166,6 +166,8 @@ d:\hexabyte_technologies\easy-content\
 
 Here is the complete step-by-step creator journey from day one to continuous publishing and learning:
 
+The dashboard and sidebar organize the journey into six stages: **Discover → Verify → Create → Produce → Publish → Learn**. The dashboard highlights a suggested next action using the existing setup and content-lifecycle counts. Open a stage in the sidebar to find its engine pages; studio administration and engine catalog tools are grouped separately. The recommendation only opens the relevant page: topic approval, research verification, script approval, final quality sign-off, and publishing remain explicit creator actions.
+
 ```text
  [1. Settings]   ──> [2. Sources & Trends] ──> [3. Opportunities] ──> [4. Research Packet]
        │                                                                      │
