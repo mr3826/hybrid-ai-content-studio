@@ -15,7 +15,7 @@ from app.engines.ai.engine import AIProviderEngine
 @pytest.mark.asyncio
 async def test_gemini_adapter_headers_and_url_without_key_in_query():
     """Verify Gemini uses x-goog-api-key header and NEVER embeds the API key in the URL query string."""
-    fake_key = "AIzaSy_SECRET_CREDENTIAL_TEST_XYZ987"
+    fake_key = "test-gemini-key-never-sent"
     adapter = GeminiAdapter(api_key=fake_key, model="gemini-3.8-flash")
 
     # 1. Header check
