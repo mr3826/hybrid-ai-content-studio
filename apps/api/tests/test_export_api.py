@@ -1,6 +1,12 @@
 import uuid
+from datetime import timedelta
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.script import ScriptDraft
+from app.repositories.quality_gate_repository import QualityGateRepository
 
 
 @pytest.mark.asyncio
@@ -282,9 +288,8 @@ async def test_export_gate_blocks_without_qc_audit_or_unapproved(client: AsyncCl
 
 
 @pytest.mark.asyncio
-async def test_export_gate_blocks_stale_qc_audit_after_script_modified(client: AsyncClient):
+async def test_export_gate_blocks_stale_qc_audit_after_script_modified(client: AsyncClient, db_session: AsyncSession):
     """Test that modifying a script after QC audit approval invalidates authorization (stale audit)."""
-    import asyncio
     test_id = uuid.uuid4().hex[:6]
 
     fam = (await client.post(
@@ -316,9 +321,6 @@ async def test_export_gate_blocks_stale_qc_audit_after_script_modified(client: A
     )
     assert app_res.status_code == 200
 
-    # Ensure a measurable timestamp progression beyond tolerance
-    await asyncio.sleep(1.1)
-
     # Modify the script (e.g., section refinement or update)
     sec_id = script["sections"][0]["id"]
     refine_res = await client.post(
@@ -326,6 +328,14 @@ async def test_export_gate_blocks_stale_qc_audit_after_script_modified(client: A
         json={"refinement_type": "shorten", "guidance": "Make hook punchier."},
     )
     assert refine_res.status_code == 200
+
+    # Model a persisted edit only 500 ms after QC approval. Any post-approval edit is stale.
+    audit = await QualityGateRepository(db_session).get_audit_by_item(item['id'])
+    script_record = await db_session.get(ScriptDraft, script['id'])
+    assert audit is not None and audit.approved_at is not None
+    assert script_record is not None
+    script_record.updated_at = audit.approved_at + timedelta(milliseconds=500)
+    await db_session.commit()
 
     # Attempt export -> must be rejected because script was modified after approval
     exp_res = await client.post(f"/api/v1/export/{item['id']}")

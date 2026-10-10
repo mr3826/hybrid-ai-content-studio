@@ -2,7 +2,7 @@ import io
 import logging
 import os
 import zipfile
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -147,12 +147,11 @@ async def create_export_package(
         audit_approved_at = (
             audit.approved_at if audit.approved_at.tzinfo else audit.approved_at.replace(tzinfo=timezone.utc)
         )
-        tolerance = timedelta(seconds=1)
         if script.updated_at:
             script_updated_at = (
                 script.updated_at if script.updated_at.tzinfo else script.updated_at.replace(tzinfo=timezone.utc)
             )
-            if script_updated_at > (audit_approved_at + tolerance):
+            if script_updated_at > audit_approved_at:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=(
@@ -164,7 +163,7 @@ async def create_export_package(
             script_created_at = (
                 script.created_at if script.created_at.tzinfo else script.created_at.replace(tzinfo=timezone.utc)
             )
-            if script_created_at > (audit_approved_at + tolerance):
+            if script_created_at > audit_approved_at:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=(
