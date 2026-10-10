@@ -4,7 +4,6 @@ import httpx
 
 from app.core.config import settings
 from app.engines.ai.adapters.gemini import GeminiAdapter
-from app.engines.ai.adapters.qwen import QwenAdapter
 from app.engines.ai.contracts import (
     TextGenerationRequest,
     StructuredGenerationRequest,
@@ -17,7 +16,7 @@ from app.engines.ai.engine import AIProviderEngine
 async def test_gemini_adapter_headers_and_url_without_key_in_query():
     """Verify Gemini uses x-goog-api-key header and NEVER embeds the API key in the URL query string."""
     fake_key = "AIzaSy_SECRET_CREDENTIAL_TEST_XYZ987"
-    adapter = GeminiAdapter(api_key=fake_key, model="gemini-2.0-flash")
+    adapter = GeminiAdapter(api_key=fake_key, model="gemini-3.8-flash")
 
     # 1. Header check
     headers = adapter._get_headers()
@@ -53,7 +52,7 @@ async def test_gemini_adapter_headers_and_url_without_key_in_query():
         # Critical security invariant: API key must NOT be in URL
         assert fake_key not in captured_url
         assert "?key=" not in captured_url
-        assert captured_url == "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+        assert captured_url == "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
 
         # Key must be present securely in x-goog-api-key header
         assert captured_headers.get("x-goog-api-key") == fake_key
@@ -63,7 +62,7 @@ async def test_gemini_adapter_headers_and_url_without_key_in_query():
 async def test_gemini_adapter_error_sanitization():
     """Verify exception and error messages sanitize credentials and replace them with [REDACTED]."""
     fake_key = "AIzaSy_SENSITIVE_LEAK_TARGET_123"
-    adapter = GeminiAdapter(api_key=fake_key, model="gemini-2.0-flash")
+    adapter = GeminiAdapter(api_key=fake_key, model="gemini-3.8-flash")
 
     # Direct sanitizer check
     raw_leak = f"Connection failed to endpoint with credentials {fake_key} in trace"
@@ -84,8 +83,8 @@ async def test_gemini_adapter_error_sanitization():
 
 
 @pytest.mark.asyncio
-async def test_gemini_structured_generation_sends_schema_and_bounds_2_5_thinking():
-    adapter = GeminiAdapter(api_key="test-key", model="gemini-2.5-flash")
+async def test_gemini_structured_generation_sends_bounded_schema_for_38():
+    adapter = GeminiAdapter(api_key="test-key", model="gemini-3.8-flash")
     captured_payload = None
 
     async def mock_post(url, headers=None, json=None, **kwargs):
@@ -137,16 +136,17 @@ async def test_gemini_structured_generation_sends_schema_and_bounds_2_5_thinking
     assert generation_config["responseMimeType"] == "application/json"
     assert generation_config["responseSchema"]["type"] == "OBJECT"
     assert generation_config["responseSchema"]["properties"]["sections"]["items"]["type"] == "OBJECT"
-    assert "minItems" not in generation_config["responseSchema"]["properties"]["sections"]
-    assert "maxItems" not in generation_config["responseSchema"]["properties"]["sections"]
+    assert generation_config["responseSchema"]["properties"]["sections"]["minItems"] == 1
+    assert generation_config["responseSchema"]["properties"]["sections"]["maxItems"] == 1
     assert "additionalProperties" not in generation_config["responseSchema"]
     assert "additionalProperties" not in generation_config["responseSchema"]["properties"]["sections"]["items"]
-    assert generation_config["thinkingConfig"] == {"thinkingBudget": 0}
+    assert "thinkingConfig" not in generation_config
+    assert "temperature" not in generation_config
 
 
 @pytest.mark.asyncio
 async def test_gemini_structured_generation_rejects_truncated_output():
-    adapter = GeminiAdapter(api_key="test-key", model="gemini-2.5-flash")
+    adapter = GeminiAdapter(api_key="test-key", model="gemini-3.8-flash")
 
     async def mock_post(url, headers=None, json=None, **kwargs):
         return httpx.Response(
@@ -173,22 +173,9 @@ async def test_gemini_structured_generation_rejects_truncated_output():
 
 
 @pytest.mark.asyncio
-async def test_qwen_adapter_error_sanitization():
-    """Verify Qwen adapter sanitizes credentials in error messages."""
-    fake_key = "qwen-secret-token-abcdef456"
-    adapter = QwenAdapter(api_key=fake_key)
-
-    raw_err = f"Qwen unauthorized: key {fake_key} was rejected"
-    sanitized = adapter._sanitize_error(raw_err)
-    assert fake_key not in sanitized
-    assert "[REDACTED]" in sanitized
-
-
-@pytest.mark.asyncio
-async def test_gemini_and_qwen_simulate_failure_isolation():
-    """Verify simulate_failure is handled deterministically without network calls in all adapters."""
+async def test_gemini_simulate_failure_isolation():
+    """Verify deterministic Gemini failures do not require an outbound request."""
     gemini = GeminiAdapter(api_key="test-key")
-    qwen = QwenAdapter(api_key="test-key")
 
     # Gemini simulate_failure modes
     resp_rate = await gemini.generate_text(TextGenerationRequest(prompt="t", simulate_failure="rate_limit"))
@@ -204,16 +191,6 @@ async def test_gemini_and_qwen_simulate_failure_isolation():
     )
     assert resp_schema.success is False
     assert "Schema parsing error" in resp_schema.error_message
-
-    # Qwen simulate_failure modes
-    q_rate = await qwen.generate_text(TextGenerationRequest(prompt="t", simulate_failure="rate_limit"))
-    assert q_rate.success is False
-    assert "429" in q_rate.error_message
-
-    q_srv = await qwen.generate_text(TextGenerationRequest(prompt="t", simulate_failure="server_error"))
-    assert q_srv.success is False
-    assert "503" in q_srv.error_message
-
 
 @pytest.mark.asyncio
 async def test_ai_provider_test_isolation_guarantee():

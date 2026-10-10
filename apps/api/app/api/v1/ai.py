@@ -75,7 +75,7 @@ async def generate_text(
     db: AsyncSession = Depends(get_db),
     engine: AIProviderEngine = Depends(get_ai_engine),
 ):
-    """Centralized unstructured text generation with primary adapter and technical fallback."""
+    """Generate text through Gemini or deterministic mock mode."""
     return await engine.generate_text(request, session=db)
 
 
@@ -85,7 +85,7 @@ async def generate_structured(
     db: AsyncSession = Depends(get_db),
     engine: AIProviderEngine = Depends(get_ai_engine),
 ):
-    """Centralized schema-enforced JSON generation with primary adapter and schema fallback."""
+    """Generate schema-enforced JSON through Gemini or deterministic mock mode."""
     return await engine.generate_structured(request, session=db)
 
 
@@ -95,7 +95,7 @@ async def analyze_content(
     db: AsyncSession = Depends(get_db),
     engine: AIProviderEngine = Depends(get_ai_engine),
 ):
-    """Centralized content and claim auditing with technical fallback."""
+    """Analyze content and claims through Gemini or deterministic mock mode."""
     return await engine.analyze(request, session=db)
 
 
@@ -126,7 +126,7 @@ async def get_analytics(
     days: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get aggregated token usage, cost, latency, and fallback metrics."""
+    """Get aggregated token usage, cost, latency, and historical fallback metrics."""
     repo = AIRepository(db)
     return await repo.get_analytics_summary(days=days)
 

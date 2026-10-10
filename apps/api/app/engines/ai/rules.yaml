@@ -1,34 +1,10 @@
 version: "1.0.0"
-primary_provider: "gemini"
-fallback_provider: "qwen"
-fallback_enabled: true
-fallback_on_status_codes:
-  - 429
-  - 500
-  - 502
-  - 503
-  - 504
-  - 408
-fallback_on_schema_error: true
-forbidden_fallback_reasons:
-  - "insufficient_evidence"
-  - "lack_of_facts"
-  - "unsupported_claim"
-  - "editorial_rejection"
 timeout_seconds: 30
 max_tokens_default: 2048
 cost_rates:
   gemini:
-    prompt_per_million: 0.10
-    completion_per_million: 0.40
-  qwen:
-    prompt_per_million: 0.40
-    completion_per_million: 1.20
-  openai:
-    prompt_per_million: 0.10
-    cached_prompt_per_million: 0.01
-    cache_write_prompt_per_million: 0.125
-    completion_per_million: 0.50
+    prompt_per_million: 0.75
+    completion_per_million: 3.75
   mock:
     prompt_per_million: 0.00
     completion_per_million: 0.00

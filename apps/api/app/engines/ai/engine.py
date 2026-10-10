@@ -23,45 +23,25 @@ from app.engines.ai.contracts import (
     StructuredGenerationRequest,
     AnalyzeRequest,
     AIResponse,
+    AIProviderAttempt,
     AIProviderStatus,
 )
 from app.engines.ai.adapters.base import BaseAIAdapter
 from app.engines.ai.adapters.gemini import GeminiAdapter
-from app.engines.ai.adapters.qwen import QwenAdapter
-from app.engines.ai.adapters.openai import OpenAIAdapter
 from app.engines.ai.adapters.mock import MockAIAdapter
 from app.repositories.ai_repository import AIRepository
 
 
 class AIProviderEngine(BaseEngine):
-    """Centralized pluggable AI Provider Engine.
-
-    Manages LLM provider adapters (Gemini, Qwen, OpenAI, and Mock for testing),
-    enforces technical/schema fallback rules, calculates token usage and cost,
-    and logs immutable invocation telemetry.
-    """
+    """Gemini-backed AI engine with a deterministic offline mock adapter."""
 
     def __init__(self, engine_dir: Optional[Path] = None):
         super().__init__(engine_dir=engine_dir or Path(__file__).parent)
 
         cost_rates = self.rules.get("cost_rates", {})
-        gemini_rates = cost_rates.get("gemini", {"prompt_per_million": 0.10, "completion_per_million": 0.40})
-        qwen_rates = cost_rates.get("qwen", {"prompt_per_million": 0.40, "completion_per_million": 1.20})
-        openai_rates = dict(
-            cost_rates.get("openai", {"prompt_per_million": 0.10, "completion_per_million": 0.50})
+        gemini_rates = cost_rates.get(
+            "gemini", {"prompt_per_million": 0.75, "completion_per_million": 3.75}
         )
-        if settings.OPENAI_PROMPT_COST_PER_MILLION is not None:
-            openai_rates["prompt_per_million"] = settings.OPENAI_PROMPT_COST_PER_MILLION
-        if settings.OPENAI_CACHED_PROMPT_COST_PER_MILLION is not None:
-            openai_rates["cached_prompt_per_million"] = (
-                settings.OPENAI_CACHED_PROMPT_COST_PER_MILLION
-            )
-        if settings.OPENAI_CACHE_WRITE_PROMPT_COST_PER_MILLION is not None:
-            openai_rates["cache_write_prompt_per_million"] = (
-                settings.OPENAI_CACHE_WRITE_PROMPT_COST_PER_MILLION
-            )
-        if settings.OPENAI_COMPLETION_COST_PER_MILLION is not None:
-            openai_rates["completion_per_million"] = settings.OPENAI_COMPLETION_COST_PER_MILLION
         mock_rates = cost_rates.get("mock", {"prompt_per_million": 0.00, "completion_per_million": 0.00})
 
         self.gemini_adapter = GeminiAdapter(
@@ -71,41 +51,15 @@ class AIProviderEngine(BaseEngine):
             timeout_seconds=self.rules.get("timeout_seconds", 30),
         )
 
-        self.qwen_adapter = QwenAdapter(
-            api_key=settings.QWEN_API_KEY,
-            base_url=settings.QWEN_API_BASE,
-            model=settings.QWEN_MODEL,
-            cost_rates=qwen_rates,
-            timeout_seconds=self.rules.get("timeout_seconds", 30),
-        )
-
-        self.openai_adapter = OpenAIAdapter(
-            api_key=settings.OPENAI_API_KEY,
-            model=settings.OPENAI_MODEL,
-            cost_rates=openai_rates,
-            timeout_seconds=self.rules.get("timeout_seconds", 30),
-            reasoning_effort=settings.OPENAI_REASONING_EFFORT,
-        )
-
         self.mock_adapter = MockAIAdapter(cost_rates=mock_rates)
-        self.provider_adapters: Dict[str, BaseAIAdapter] = {
-            "gemini": self.gemini_adapter,
-            "qwen": self.qwen_adapter,
-            "openai": self.openai_adapter,
-        }
         self._budget_lock = asyncio.Lock()
 
     def validate_config(self) -> None:
         """Validate engine configuration or rules."""
         if not self.rules:
             raise ValueError("AIProviderEngine rules cannot be empty.")
-        if "primary_provider" not in self.rules:
-            raise ValueError("primary_provider must be defined in AI rules.")
-        supported_providers = {"gemini", "qwen", "openai"}
-        if settings.AI_PRIMARY_PROVIDER not in supported_providers:
-            raise ValueError("AI_PRIMARY_PROVIDER must be gemini, qwen, or openai.")
-        if settings.AI_FALLBACK_PROVIDER not in supported_providers:
-            raise ValueError("AI_FALLBACK_PROVIDER must be gemini, qwen, or openai.")
+        if "gemini" not in self.rules.get("cost_rates", {}):
+            raise ValueError("Gemini cost rates must be defined in AI rules.")
 
     def health(self) -> EngineHealth:
         """Perform active sync health check for BaseEngine contract."""
@@ -113,36 +67,21 @@ class AIProviderEngine(BaseEngine):
             return EngineHealth(
                 status="healthy",
                 message="AI Provider Engine running in Mock Mode (offline deterministic adapters).",
-                details={
-                    "mode": "mock",
-                    "primary": "mock",
-                    "fallback": "mock",
-                },
+                details={"mode": "mock", "provider": "mock"},
             )
-        primary_provider = settings.AI_PRIMARY_PROVIDER
-        fallback_provider = settings.AI_FALLBACK_PROVIDER
-        primary_configured = self._provider_is_configured(primary_provider)
-        fallback_configured = self._provider_is_configured(fallback_provider)
-        if primary_configured and fallback_configured:
-            status = "healthy"
-            msg = f"{primary_provider} primary and {fallback_provider} fallback adapters configured."
-        elif primary_configured or fallback_configured:
-            status = "degraded"
-            msg = (
-                f"Partial configuration ({primary_provider}: {primary_configured}, "
-                f"{fallback_provider}: {fallback_configured})."
-            )
-        else:
-            status = "degraded"
-            msg = "No external AI API keys configured (set in environment or enable AI_MOCK_MODE)."
+        configured = self._provider_is_configured("gemini")
+        status = "healthy" if configured else "degraded"
+        msg = (
+            "Gemini credentials are configured."
+            if configured
+            else "Gemini credentials are missing; configure CONTENT_STUDIO_GEMINI or enable mock mode."
+        )
         return EngineHealth(
             status=status,
             message=msg,
             details={
-                "primary_provider": primary_provider,
-                "primary_configured": primary_configured,
-                "fallback_provider": fallback_provider,
-                "fallback_configured": fallback_configured,
+                "provider": "gemini",
+                "configured": configured,
                 "mock_mode": settings.AI_MOCK_MODE,
             },
         )
@@ -155,51 +94,27 @@ class AIProviderEngine(BaseEngine):
     def _get_primary_adapter(self, preferred: Optional[str] = None) -> BaseAIAdapter:
         if settings.AI_MOCK_MODE or preferred == "mock":
             return self.mock_adapter
-        provider = preferred or settings.AI_PRIMARY_PROVIDER or self.rules.get("primary_provider", "gemini")
-        try:
-            return self.provider_adapters[provider]
-        except KeyError as exc:
-            raise ValueError(f"Unsupported AI provider: {provider}.") from exc
+        if preferred not in (None, "gemini"):
+            raise ValueError("Live generation supports Gemini only; select Gemini or Mock.")
+        return self.gemini_adapter
 
     def _provider_is_configured(self, provider: str) -> bool:
-        if settings.AI_MOCK_MODE:
-            return True
-        adapter = self.provider_adapters.get(provider)
-        return bool(getattr(adapter, "api_key", None))
-
-    def _get_fallback_adapter(self) -> BaseAIAdapter:
-        if settings.AI_MOCK_MODE:
-            # Secondary mock adapter configured to succeed when fallback occurs
-            adapter = MockAIAdapter()
-            adapter.provider_id = "qwen-mock-fallback"
-            adapter.default_model = "mock-qwen-fallback-model"
-            return adapter
-        provider = settings.AI_FALLBACK_PROVIDER or self.rules.get("fallback_provider", "qwen")
-        try:
-            return self.provider_adapters[provider]
-        except KeyError as exc:
-            raise ValueError(f"Unsupported AI fallback provider: {provider}.") from exc
+        if provider != "gemini":
+            return False
+        credential = self.gemini_adapter.api_key
+        return isinstance(credential, str) and bool(credential.strip())
 
     def estimate_max_cost(self, request: StructuredGenerationRequest) -> float:
-        """Estimate the maximum configured provider cost, including an eligible fallback."""
+        """Estimate one Gemini request at the configured output-token ceiling."""
         if settings.AI_MOCK_MODE or request.preferred_provider == "mock":
             return 0.0
 
         primary = self._get_primary_adapter(request.preferred_provider)
         prompt = request.prompt + json.dumps(request.response_schema, separators=(",", ":"))
         prompt_tokens = max(1, math.ceil(len(prompt) / 4))
-        cost = self._maximum_provider_cost(primary, prompt_tokens, request.max_tokens)
-        fallback_enabled = (
-            request.allow_fallback
-            and settings.AI_FALLBACK_ENABLED
-            and self.rules.get("fallback_enabled", True)
+        return round(
+            self._maximum_provider_cost(primary, prompt_tokens, request.max_tokens), 10
         )
-        fallback = self._get_fallback_adapter() if fallback_enabled else None
-        if fallback and fallback.provider_id != primary.provider_id:
-            cost += self._maximum_provider_cost(
-                fallback, prompt_tokens, request.max_tokens
-            )
-        return round(cost, 10)
 
     @staticmethod
     def _maximum_provider_cost(
@@ -222,16 +137,7 @@ class AIProviderEngine(BaseEngine):
             prompt = request.content + request.instruction + " ".join(request.criteria)
         prompt_tokens = max(1, math.ceil(len(prompt) / 4))
         max_tokens = getattr(request, "max_tokens", self.rules.get("max_tokens_default", 2048))
-        cost = self._maximum_provider_cost(primary, prompt_tokens, max_tokens)
-        fallback_enabled = (
-            getattr(request, "allow_fallback", True)
-            and settings.AI_FALLBACK_ENABLED
-            and self.rules.get("fallback_enabled", True)
-        )
-        fallback = self._get_fallback_adapter() if fallback_enabled else None
-        if fallback and fallback.provider_id != primary.provider_id:
-            cost += self._maximum_provider_cost(fallback, prompt_tokens, max_tokens)
-        return round(cost, 10)
+        return round(self._maximum_provider_cost(primary, prompt_tokens, max_tokens), 10)
 
     def _budget_response(
         self,
@@ -247,6 +153,20 @@ class AIProviderEngine(BaseEngine):
             prompt_version=request.prompt_version,
             success=False,
             error_message=message,
+            failure_category="budget_exceeded" if "budget" in message.lower() else "invalid_request",
+        )
+
+    @staticmethod
+    def _unsupported_provider_response(request: Any, message: str) -> AIResponse:
+        return AIResponse(
+            text="",
+            provider="none",
+            model="",
+            task=request.task,
+            prompt_version=request.prompt_version,
+            success=False,
+            error_message=message,
+            failure_category="invalid_request",
         )
 
     async def _check_budget(
@@ -295,12 +215,14 @@ class AIProviderEngine(BaseEngine):
         if response.structured_data is None:
             response.success = False
             response.error_message = "Schema validation error: provider returned no structured JSON object."
+            response.failure_category = "output_schema_validation"
             return response
         try:
             Draft202012Validator.check_schema(request.response_schema)
         except SchemaError as exc:
             response.success = False
             response.error_message = f"Invalid response schema at {'.'.join(str(part) for part in exc.absolute_path)}."
+            response.failure_category = "invalid_request"
             return response
         try:
             Draft202012Validator(request.response_schema).validate(response.structured_data)
@@ -318,32 +240,23 @@ class AIProviderEngine(BaseEngine):
                 detail += " The response used a value outside the allowed choices."
             response.success = False
             response.error_message = detail
+            response.failure_category = "output_schema_validation"
         return response
 
-    def _is_technical_or_schema_failure(self, error_msg: Optional[str]) -> bool:
-        if not error_msg:
-            return False
-        lower = error_msg.lower()
-
-        # Check forbidden reasons (do not use fallback to manufacture factual support)
-        forbidden = self.rules.get("forbidden_fallback_reasons", [
-            "insufficient_evidence", "lack_of_facts", "unsupported_claim", "editorial_rejection"
-        ])
-        for f in forbidden:
-            if f.lower() in lower:
-                return False
-
-        # Check technical indicators
-        indicators = [
-            "429", "500", "502", "503", "504", "408",
-            "rate limit", "overloaded", "connection", "timeout",
-            "schema parsing", "malformed json", "jsondecodeerror",
-            "schema validation error",
-            "max output tokens",
-            "server error", "service unavailable", "timed out",
-            "technical failure"
-        ]
-        return any(ind in lower for ind in indicators)
+    @staticmethod
+    def _provider_attempt(response: AIResponse) -> AIProviderAttempt:
+        return AIProviderAttempt(
+            provider=response.provider,
+            model=response.model,
+            success=response.success,
+            failure_category=response.failure_category,
+            error_message=response.error_message,
+            prompt_tokens=response.prompt_tokens,
+            completion_tokens=response.completion_tokens,
+            total_tokens=response.total_tokens,
+            cost=response.cost,
+            latency_ms=response.latency_ms,
+        )
 
     async def _log_telemetry(
         self,
@@ -352,7 +265,7 @@ class AIProviderEngine(BaseEngine):
         session: Optional[AsyncSession] = None,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        if not session:
+        if session is None:
             return
         try:
             repo = AIRepository(session)
@@ -378,129 +291,118 @@ class AIProviderEngine(BaseEngine):
                     key: metadata[key]
                     for key in ("project_id", "content_item_id", "operation")
                     if metadata and key in metadata and isinstance(metadata[key], (str, int))
+                }
+                | {
+                    "primary_model": response.primary_model,
+                    "primary_failure_category": response.primary_failure_category,
+                    "provider_attempts": [
+                        attempt.model_dump(mode="json")
+                        for attempt in response.provider_attempts
+                    ],
                 },
             )
         except Exception:
             # Telemetry logging must never crash the primary execution flow
             pass
 
+    async def _execute_provider_request(
+        self,
+        request: Any,
+        primary: BaseAIAdapter,
+        session: Optional[AsyncSession],
+        prompt_text: str,
+        method_name: str,
+        *,
+        validate_structured: bool = False,
+    ) -> AIResponse:
+        budget_response = await self._check_budget(request, primary, session)
+        if budget_response is not None:
+            await self._log_telemetry(
+                budget_response, prompt_text, session, request.metadata
+            )
+            return budget_response
+
+        response = await getattr(primary, method_name)(request)
+        if validate_structured:
+            response = self._validate_structured_response(request, response)
+
+        response.provider_attempts = [self._provider_attempt(response)]
+        await self._log_telemetry(
+            response, prompt_text, session, request.metadata
+        )
+        return response
+
     async def generate_text(
         self,
         request: TextGenerationRequest,
         session: Optional[AsyncSession] = None,
     ) -> AIResponse:
-        """Execute text generation with primary adapter and technical fallback."""
+        """Execute one text-generation request through Gemini or the offline mock."""
         async with self._budget_lock:
-            primary = self._get_primary_adapter(request.preferred_provider)
-            resp = await self._check_budget(request, primary, session)
-            if resp is None:
-                resp = await primary.generate_text(request)
-                fallback_enabled = (
-                    request.allow_fallback
-                    and settings.AI_FALLBACK_ENABLED
-                    and self.rules.get("fallback_enabled", True)
-                )
-                if not resp.success and fallback_enabled and self._is_technical_or_schema_failure(resp.error_message):
-                    fallback = self._get_fallback_adapter()
-                    if fallback.provider_id != primary.provider_id:
-                        await self._log_telemetry(
-                            resp, request.prompt, session, request.metadata
-                        )
-                        fb_resp = await fallback.generate_text(request.model_copy(update={"simulate_failure": None}))
-                        fb_resp.fallback_used = True
-                        fb_resp.fallback_reason = resp.error_message
-                        fb_resp.primary_provider = primary.provider_id
-                        fb_resp.primary_error = resp.error_message
-                        if not fb_resp.success:
-                            fb_resp.error_message = (
-                                f"Primary {primary.provider_id} failed: {resp.error_message}; "
-                                f"fallback {fallback.provider_id} failed: {fb_resp.error_message}"
-                            )
-                        resp = fb_resp
-            await self._log_telemetry(resp, request.prompt, session, request.metadata)
-            return resp
+            try:
+                primary = self._get_primary_adapter(request.preferred_provider)
+            except ValueError as exc:
+                return self._unsupported_provider_response(request, str(exc))
+            return await self._execute_provider_request(
+                request, primary, session, request.prompt, "generate_text"
+            )
 
     async def generate_structured(
         self,
         request: StructuredGenerationRequest,
         session: Optional[AsyncSession] = None,
     ) -> AIResponse:
-        """Execute schema-enforced structured generation with technical fallback."""
+        """Execute one schema-enforced request through Gemini or the offline mock."""
         async with self._budget_lock:
-            primary = self._get_primary_adapter(request.preferred_provider)
-            resp = await self._check_budget(request, primary, session)
-            if resp is None:
-                resp = self._validate_structured_response(
-                    request, await primary.generate_structured(request)
+            try:
+                primary = self._get_primary_adapter(request.preferred_provider)
+            except ValueError as exc:
+                return self._unsupported_provider_response(request, str(exc))
+            try:
+                Draft202012Validator.check_schema(request.response_schema)
+            except SchemaError as exc:
+                return AIResponse(
+                    text="",
+                    provider=primary.provider_id,
+                    model=primary.default_model,
+                    task=request.task,
+                    prompt_version=request.prompt_version,
+                    success=False,
+                    error_message=(
+                        "Invalid response schema at "
+                        f"{'.'.join(str(part) for part in exc.absolute_path)}."
+                    ),
+                    failure_category="invalid_request",
                 )
-                fallback_enabled = (
-                    request.allow_fallback
-                    and settings.AI_FALLBACK_ENABLED
-                    and self.rules.get("fallback_enabled", True)
-                )
-                if not resp.success and fallback_enabled and self._is_technical_or_schema_failure(resp.error_message):
-                    fallback = self._get_fallback_adapter()
-                    if fallback.provider_id != primary.provider_id:
-                        await self._log_telemetry(
-                            resp, request.prompt, session, request.metadata
-                        )
-                        fb_resp = await fallback.generate_structured(
-                            request.model_copy(update={"simulate_failure": None})
-                        )
-                        fb_resp = self._validate_structured_response(request, fb_resp)
-                        fb_resp.fallback_used = True
-                        fb_resp.fallback_reason = resp.error_message
-                        fb_resp.primary_provider = primary.provider_id
-                        fb_resp.primary_error = resp.error_message
-                        if not fb_resp.success:
-                            fb_resp.error_message = (
-                                f"Primary {primary.provider_id} failed: {resp.error_message}; "
-                                f"fallback {fallback.provider_id} failed: {fb_resp.error_message}"
-                            )
-                        resp = fb_resp
-            await self._log_telemetry(resp, request.prompt, session, request.metadata)
-            return resp
+            return await self._execute_provider_request(
+                request,
+                primary,
+                session,
+                request.prompt,
+                "generate_structured",
+                validate_structured=True,
+            )
 
     async def analyze(
         self,
         request: AnalyzeRequest,
         session: Optional[AsyncSession] = None,
     ) -> AIResponse:
-        """Audit and analyze content with technical fallback."""
+        """Analyze content through Gemini or the offline mock."""
         async with self._budget_lock:
-            primary = self._get_primary_adapter(request.preferred_provider)
-            resp = await self._check_budget(request, primary, session)
-            if resp is None:
-                resp = await primary.analyze(request)
-                fallback_enabled = (
-                    request.allow_fallback
-                    and settings.AI_FALLBACK_ENABLED
-                    and self.rules.get("fallback_enabled", True)
-                )
-                if not resp.success and fallback_enabled and self._is_technical_or_schema_failure(resp.error_message):
-                    fallback = self._get_fallback_adapter()
-                    if fallback.provider_id != primary.provider_id:
-                        await self._log_telemetry(
-                            resp, request.content, session, request.metadata
-                        )
-                        fb_resp = await fallback.analyze(request.model_copy(update={"simulate_failure": None}))
-                        fb_resp.fallback_used = True
-                        fb_resp.fallback_reason = resp.error_message
-                        fb_resp.primary_provider = primary.provider_id
-                        fb_resp.primary_error = resp.error_message
-                        if not fb_resp.success:
-                            fb_resp.error_message = (
-                                f"Primary {primary.provider_id} failed: {resp.error_message}; "
-                                f"fallback {fallback.provider_id} failed: {fb_resp.error_message}"
-                            )
-                        resp = fb_resp
-            await self._log_telemetry(resp, request.content, session, request.metadata)
-            return resp
+            try:
+                primary = self._get_primary_adapter(request.preferred_provider)
+            except ValueError as exc:
+                return self._unsupported_provider_response(request, str(exc))
+            prompt_text = request.content + "\n" + request.instruction
+            return await self._execute_provider_request(
+                request, primary, session, prompt_text, "analyze"
+            )
 
     async def get_status(self, session: Optional[AsyncSession] = None) -> AIProviderStatus:
         """Retrieve operational health, model settings, and budget usage."""
         daily_spend = 0.0
-        if session:
+        if session is not None:
             try:
                 repo = AIRepository(session)
                 daily_spend = await repo.get_daily_spend()
@@ -508,19 +410,17 @@ class AIProviderEngine(BaseEngine):
                 daily_spend = 0.0
 
         daily_limit = settings.MAX_AI_COST_PER_DAY
-        # Report configured routing even while mock mode temporarily routes calls
-        # through the mock adapter. This keeps status useful and stable offline.
-        primary = self.provider_adapters[settings.AI_PRIMARY_PROVIDER]
-        fallback = self.provider_adapters[settings.AI_FALLBACK_PROVIDER]
+        # Keep the fallback fields in the response for API compatibility with
+        # existing clients; new requests have no fallback route.
         return AIProviderStatus(
             mock_mode=settings.AI_MOCK_MODE,
-            primary_provider=primary.provider_id,
-            primary_configured=self._provider_is_configured(primary.provider_id),
-            primary_model=primary.default_model,
-            fallback_provider=fallback.provider_id,
-            fallback_configured=self._provider_is_configured(fallback.provider_id),
-            fallback_model=fallback.default_model,
-            fallback_enabled=settings.AI_FALLBACK_ENABLED,
+            primary_provider="gemini",
+            primary_configured=self._provider_is_configured("gemini"),
+            primary_model=settings.GEMINI_MODEL,
+            fallback_provider="none",
+            fallback_configured=False,
+            fallback_model="",
+            fallback_enabled=False,
             daily_spend_today=round(daily_spend, 4),
             daily_budget_limit=daily_limit,
             budget_exceeded=daily_spend >= daily_limit,
@@ -574,59 +474,34 @@ class AIProviderEngine(BaseEngine):
         )
 
     async def health_check(self) -> EngineHealth:
-        """Verify health of primary and fallback provider adapters."""
+        """Report Gemini configuration without making a provider request."""
         if settings.AI_MOCK_MODE:
             return EngineHealth(
                 status="healthy",
                 message="AI Provider Engine running in Mock Mode (offline deterministic adapters).",
-                details={
-                    "mode": "mock",
-                    "primary": "mock",
-                    "fallback": "mock",
-                },
+                details={"mode": "mock", "provider": "mock"},
             )
-
-        health_by_provider = {
-            name: await adapter.health_check()
-            for name, adapter in self.provider_adapters.items()
-        }
-        active_providers = [settings.AI_PRIMARY_PROVIDER]
-        if settings.AI_FALLBACK_ENABLED and settings.AI_FALLBACK_PROVIDER not in active_providers:
-            active_providers.append(settings.AI_FALLBACK_PROVIDER)
-        active_statuses = [health_by_provider[name]["status"] for name in active_providers]
-        if all(status == "healthy" for status in active_statuses):
-            overall_status = "healthy"
-        elif any(status == "healthy" for status in active_statuses):
-            overall_status = "degraded"
-        else:
-            overall_status = "failing"
-        health_summary = " | ".join(
-            f"{name}: {result['status']}" for name, result in health_by_provider.items()
-        )
+        gemini = await self.gemini_adapter.health_check()
 
         return EngineHealth(
-            status=overall_status,
-            message=health_summary,
-            details=health_by_provider,
+            status=gemini["status"],
+            message=gemini["message"],
+            details={"gemini": gemini},
         )
 
     def explain(self, result_id: str) -> EngineExplanation:
         """Provide audit and decision explainability for the AI provider engine."""
         return EngineExplanation(
             result_id=result_id,
-            summary="AI Provider Engine routing policy with technical-only fallback and zero hallucination rules.",
+            summary="AI Provider Engine provides Gemini structured generation with evidence constraints and a deterministic offline mock mode.",
             factors=[
                 {
-                    "name": "Routing Decision",
-                    "description": (
-                        f"Primary calls route to {settings.AI_PRIMARY_PROVIDER}; technical "
-                        f"(429/500/503/timeout) or schema failures fail over to "
-                        f"{settings.AI_FALLBACK_PROVIDER}."
-                    ),
+                    "name": "Provider",
+                    "description": "Live requests use Gemini; mock mode uses deterministic local output.",
                 },
                 {
                     "name": "Factual Integrity Invariant",
-                    "description": "Fallback is strictly prohibited when primary output indicates lack of evidence or factual uncertainty.",
+                    "description": "One live Gemini attempt is made; failures never route to another provider or bypass evidence checks.",
                 },
                 {
                     "name": "Budget Gate",

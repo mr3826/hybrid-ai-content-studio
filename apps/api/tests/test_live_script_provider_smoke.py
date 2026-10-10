@@ -1,36 +1,63 @@
-"""Opt-in real-provider smoke; never substitute a mock provider for this check."""
+"""One-request Gemini script smoke; enabled only by the root isolation plugin."""
 
-import os
 import uuid
 
+import httpx
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.scripts import get_ai_provider_engine
 from app.core.config import settings
+from app.engines.ai.engine import AIProviderEngine
+from app.main import app
 from script_test_utils import prepare_script_inputs
 
 
-LIVE_SMOKE_ENABLED = os.environ.get("RUN_LIVE_AI_SMOKE") == "1"
-LIVE_PROVIDER = os.environ.get("LIVE_AI_PROVIDER", "openai").strip().lower()
-LIVE_PROVIDER_KEYS = {
-    "gemini": settings.GEMINI_API_KEY,
-    "qwen": settings.QWEN_API_KEY,
-    "openai": settings.OPENAI_API_KEY,
-}
-LIVE_PROVIDER_CONFIGURED = bool(LIVE_PROVIDER_KEYS.get(LIVE_PROVIDER))
-
-
 @pytest.mark.asyncio
-@pytest.mark.skipif(
-    not LIVE_SMOKE_ENABLED or not LIVE_PROVIDER_CONFIGURED,
-    reason="Set RUN_LIVE_AI_SMOKE=1 and configure the LIVE_AI_PROVIDER key to run the live smoke.",
-)
-async def test_live_provider_script_uses_verified_official_source(
-    client: AsyncClient, db_session: AsyncSession, monkeypatch
+@pytest.mark.live_provider
+async def test_live_gemini_script_smoke_preflights_and_persists_one_grounded_script(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch, pytestconfig: pytest.Config
 ):
+    if not pytestconfig.getoption("--run-live-provider-smoke", default=False):
+        pytest.skip("Pass --run-live-provider-smoke to opt into one live Gemini request.")
+    if not settings.GEMINI_API_KEY:
+        pytest.fail(
+            "Live Gemini smoke requires Settings.GEMINI_API_KEY to resolve a credential "
+            "from CONTENT_STUDIO_GEMINI, GEMINI_API_KEY, GEMINI_KEY, GOOGLE_API_KEY, "
+            "or .env. No provider request was sent."
+        )
+
     monkeypatch.setattr(settings, "AI_MOCK_MODE", False)
-    monkeypatch.setattr(settings, "AI_PRIMARY_PROVIDER", LIVE_PROVIDER)
+    model = settings.GEMINI_MODEL.strip()
+    if not model:
+        pytest.fail("Live Gemini smoke requires a nonempty GEMINI_MODEL. No provider request was sent.")
+    api_key = settings.GEMINI_API_KEY
+    engine = AIProviderEngine()
+    monkeypatch.setitem(app.dependency_overrides, get_ai_provider_engine, lambda: engine)
+
+    print("LIVE_GEMINI_SMOKE phase=model_preflight status=started")
+    async with httpx.AsyncClient(timeout=20) as provider_client:
+        model_response = await provider_client.get(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{model}",
+            headers={"x-goog-api-key": api_key},
+        )
+    if model_response.status_code != 200:
+        # Never print provider response bodies because they may contain request details.
+        pytest.fail(
+            f"Gemini model preflight failed with HTTP {model_response.status_code}; "
+            "no script generation request was sent. Check model access and credential configuration."
+        )
+    model_info = model_response.json()
+    model_name = str(model_info.get("name", "")).removeprefix("models/")
+    supported_methods = model_info.get("supportedGenerationMethods", [])
+    if model_name != model or "generateContent" not in supported_methods:
+        pytest.fail(
+            "Gemini model preflight did not confirm the configured model supports generateContent; "
+            "no script generation request was sent."
+        )
+    print(f"LIVE_GEMINI_SMOKE phase=model_preflight status=passed model={model}")
+
     topic = "SQLite WAL reader and writer concurrency"
     family_res = await client.post(
         "/api/v1/content-families",
@@ -70,6 +97,7 @@ async def test_live_provider_script_uses_verified_official_source(
         source_domain="sqlite.org",
     )
 
+    print("LIVE_GEMINI_SMOKE phase=script_generation status=started request_count=1")
     response = await client.post(
         "/api/v1/scripts/generate",
         json={"content_item_id": item_id, "target_duration_sec": 60},
@@ -78,16 +106,47 @@ async def test_live_provider_script_uses_verified_official_source(
     script = response.json()
     metadata = script["generation_metadata"]
     assert metadata["generation_mode"] == "live"
-    assert metadata["provider"] == LIVE_PROVIDER
-    assert metadata["model"] and "mock" not in metadata["model"].casefold()
+    assert metadata["provider"] == "gemini"
+    assert metadata["model"] == model
     assert metadata["total_tokens"] > 0
-    evidence_sections = [section for section in script["sections"] if section["section_type"] == "evidence"]
+    assert metadata["research_packet_id"]
+    assert metadata["research_packet_version"] > 0
+    assert metadata["originality_plan_id"]
+    assert claim_id in metadata["evidence_claim_ids"]
+    assert metadata["fallback_used"] is False
+    assert [attempt["provider"] for attempt in metadata["provider_attempts"]] == ["gemini"]
+    assert script["is_approved"] is False
+    evidence_sections = [
+        section for section in script["sections"] if section["section_type"] == "evidence"
+    ]
     assert evidence_sections
     assert any(claim_id in section["linked_claim_ids"] for section in evidence_sections)
     assert "sqlite" in " ".join(section["narration"] for section in script["sections"]).casefold()
     assert all("mock preview" not in section["narration"].casefold() for section in script["sections"])
+
+    persisted_response = await client.get(f"/api/v1/scripts/item/{item_id}")
+    assert persisted_response.status_code == 200, persisted_response.text
+    persisted_script = persisted_response.json()
+    assert persisted_script["id"] == script["id"]
+    assert persisted_script["is_approved"] is False
+    persisted_metadata = persisted_script["generation_metadata"]
+    for key in (
+        "generation_mode",
+        "provider",
+        "model",
+        "total_tokens",
+        "research_packet_id",
+        "research_packet_version",
+        "originality_plan_id",
+        "evidence_claim_ids",
+    ):
+        assert persisted_metadata[key] == metadata[key]
+    persisted_evidence_sections = [
+        section for section in persisted_script["sections"] if section["section_type"] == "evidence"
+    ]
+    assert any(claim_id in section["linked_claim_ids"] for section in persisted_evidence_sections)
     print(
-        "LIVE_SCRIPT_SMOKE "
-        f"item_id={item_id} provider={metadata['provider']} model={metadata['model']} "
+        "LIVE_GEMINI_SMOKE phase=script_generation status=passed "
+        f"item_id={item_id} provider=gemini model={model} "
         f"tokens={metadata['total_tokens']} cost_usd={metadata['estimated_cost_usd']}"
     )

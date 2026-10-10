@@ -18,14 +18,14 @@ class GeminiAdapter(BaseAIAdapter):
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: str = "gemini-2.0-flash",
+        model: str = "gemini-3.8-flash",
         cost_rates: Optional[Dict[str, float]] = None,
         timeout_seconds: float = 30.0,
     ):
         super().__init__(
             provider_id="gemini",
             default_model=model,
-            cost_rates=cost_rates or {"prompt_per_million": 0.10, "completion_per_million": 0.40},
+            cost_rates=cost_rates or {"prompt_per_million": 0.75, "completion_per_million": 3.75},
         )
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
@@ -47,6 +47,32 @@ class GeminiAdapter(BaseAIAdapter):
             sanitized = sanitized.replace(self.api_key, "[REDACTED]")
         return sanitized
 
+    def _usage_metrics(
+        self, data: Dict[str, Any], prompt_text: str, output_text: str
+    ) -> tuple[int, int, int, float]:
+        usage = data.get("usageMetadata", {})
+        if not isinstance(usage, dict):
+            usage = {}
+        prompt_tokens = usage.get("promptTokenCount")
+        completion_tokens = usage.get("candidatesTokenCount")
+        thoughts_tokens = usage.get("thoughtsTokenCount", 0)
+        if not isinstance(prompt_tokens, int) or isinstance(prompt_tokens, bool):
+            prompt_tokens = max(1, len(prompt_text.split()))
+        if not isinstance(completion_tokens, int) or isinstance(completion_tokens, bool):
+            completion_tokens = max(1, len(output_text.split()))
+        if not isinstance(thoughts_tokens, int) or isinstance(thoughts_tokens, bool):
+            thoughts_tokens = 0
+        completion_tokens += thoughts_tokens
+        total_tokens = usage.get("totalTokenCount")
+        if not isinstance(total_tokens, int) or isinstance(total_tokens, bool):
+            total_tokens = prompt_tokens + completion_tokens
+        return (
+            prompt_tokens,
+            completion_tokens,
+            total_tokens,
+            self.calculate_cost(prompt_tokens, completion_tokens),
+        )
+
     @staticmethod
     def _gemini_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
         """Convert the provider-neutral JSON Schema contract to Gemini Schema enums."""
@@ -60,12 +86,17 @@ class GeminiAdapter(BaseAIAdapter):
             "object": "OBJECT",
             "string": "STRING",
         }
+        # The GenerateContent ``responseSchema`` field uses Google's Schema
+        # message, which rejects JSON Schema's ``additionalProperties`` even
+        # though the engine's local validator enforces it after generation.
         supported_keys = {
             "description",
             "enum",
             "items",
             "maximum",
+            "maxItems",
             "minimum",
+            "minItems",
             "properties",
             "required",
             "type",
@@ -118,6 +149,7 @@ class GeminiAdapter(BaseAIAdapter):
                 prompt_version=request.prompt_version,
                 success=False,
                 error_message="Gemini HTTP 429: Resource exhausted (Rate limit exceeded).",
+                failure_category="rate_limit",
                 latency_ms=round(latency_ms, 2),
             )
 
@@ -131,6 +163,7 @@ class GeminiAdapter(BaseAIAdapter):
                 prompt_version=request.prompt_version,
                 success=False,
                 error_message="Gemini HTTP 503: The model is overloaded. Please try again later.",
+                failure_category="timeout" if request.simulate_failure == "timeout" else "server_error",
                 latency_ms=round(latency_ms, 2),
             )
 
@@ -144,6 +177,7 @@ class GeminiAdapter(BaseAIAdapter):
                 prompt_version=request.prompt_version,
                 success=False,
                 error_message="Gemini API key is not configured in settings or environment.",
+                failure_category="missing_credentials",
                 latency_ms=round(latency_ms, 2),
             )
 
@@ -152,7 +186,6 @@ class GeminiAdapter(BaseAIAdapter):
         payload: Dict[str, Any] = {
             "contents": [{"parts": [{"text": request.prompt}]}],
             "generationConfig": {
-                "temperature": request.temperature,
                 "maxOutputTokens": request.max_tokens,
             },
         }
@@ -175,12 +208,29 @@ class GeminiAdapter(BaseAIAdapter):
                     prompt_version=request.prompt_version,
                     success=False,
                     error_message=self._sanitize_error(raw_err),
+                    failure_category=self.classify_http_status(resp.status_code),
                     latency_ms=round(latency_ms, 2),
                 )
 
             data = resp.json()
+            usage = data.get("usageMetadata", {})
+            prompt_tokens, completion_tokens, total_tokens, cost = self._usage_metrics(
+                data, request.prompt, ""
+            )
             candidates = data.get("candidates", [])
             if not candidates:
+                prompt_feedback = data.get("promptFeedback", {})
+                block_reason = (
+                    str(prompt_feedback.get("blockReason") or "").upper()
+                    if isinstance(prompt_feedback, dict)
+                    else ""
+                )
+                blocked = block_reason in {
+                    "SAFETY",
+                    "BLOCKLIST",
+                    "PROHIBITED_CONTENT",
+                    "IMAGE_SAFETY",
+                }
                 return AIResponse(
                     text="",
                     provider=self.provider_id,
@@ -188,18 +238,25 @@ class GeminiAdapter(BaseAIAdapter):
                     task=request.task,
                     prompt_version=request.prompt_version,
                     success=False,
-                    error_message="Gemini returned no candidates in response.",
+                    error_message=(
+                        "Gemini response was blocked by its safety filters."
+                        if blocked
+                        else "Gemini returned no candidates in response."
+                    ),
+                    failure_category=("safety_refusal" if blocked else "malformed_output"),
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total_tokens,
+                    cost=cost,
                     latency_ms=round(latency_ms, 2),
                 )
 
             content_parts = candidates[0].get("content", {}).get("parts", [])
             text_out = "".join(part.get("text", "") for part in content_parts)
 
-            usage = data.get("usageMetadata", {})
-            prompt_tokens = usage.get("promptTokenCount", max(1, len(request.prompt.split())))
-            completion_tokens = usage.get("candidatesTokenCount", max(1, len(text_out.split())))
-            total_tokens = usage.get("totalTokenCount", prompt_tokens + completion_tokens)
-            cost = self.calculate_cost(prompt_tokens, completion_tokens)
+            prompt_tokens, completion_tokens, total_tokens, cost = self._usage_metrics(
+                data, request.prompt, text_out
+            )
 
             return AIResponse(
                 text=text_out,
@@ -214,9 +271,8 @@ class GeminiAdapter(BaseAIAdapter):
                 latency_ms=round(latency_ms, 2),
                 success=True,
             )
-        except Exception as e:
+        except httpx.TimeoutException:
             latency_ms = (time.perf_counter() - start_time) * 1000
-            raw_err = f"Gemini connection error: {str(e)}"
             return AIResponse(
                 text="",
                 provider=self.provider_id,
@@ -224,7 +280,49 @@ class GeminiAdapter(BaseAIAdapter):
                 task=request.task,
                 prompt_version=request.prompt_version,
                 success=False,
-                error_message=self._sanitize_error(raw_err),
+                error_message="Gemini request timed out.",
+                failure_category="timeout",
+                latency_ms=round(latency_ms, 2),
+            )
+        except httpx.NetworkError as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            return AIResponse(
+                text="",
+                provider=self.provider_id,
+                model=self.default_model,
+                task=request.task,
+                prompt_version=request.prompt_version,
+                success=False,
+                error_message=self._sanitize_error(
+                    f"Gemini connection failed ({type(e).__name__}): [REDACTED]"
+                ),
+                failure_category="connection_error",
+                latency_ms=round(latency_ms, 2),
+            )
+        except (ValueError, TypeError, AttributeError) as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            return AIResponse(
+                text="",
+                provider=self.provider_id,
+                model=self.default_model,
+                task=request.task,
+                prompt_version=request.prompt_version,
+                success=False,
+                error_message=f"Gemini response parsing failed ({type(e).__name__}).",
+                failure_category="malformed_output",
+                latency_ms=round(latency_ms, 2),
+            )
+        except Exception as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            return AIResponse(
+                text="",
+                provider=self.provider_id,
+                model=self.default_model,
+                task=request.task,
+                prompt_version=request.prompt_version,
+                success=False,
+                error_message=f"Gemini provider error ({type(e).__name__}).",
+                failure_category="provider_error",
                 latency_ms=round(latency_ms, 2),
             )
 
@@ -242,6 +340,7 @@ class GeminiAdapter(BaseAIAdapter):
                 prompt_version=request.prompt_version,
                 success=False,
                 error_message=f"Gemini HTTP {err_code}: Technical failure ({request.simulate_failure})",
+                failure_category="rate_limit" if request.simulate_failure == "rate_limit" else "server_error",
                 latency_ms=round(latency_ms, 2),
             )
 
@@ -256,6 +355,7 @@ class GeminiAdapter(BaseAIAdapter):
                 prompt_version=request.prompt_version,
                 success=False,
                 error_message="Schema parsing error: Malformed JSON output",
+                failure_category="malformed_output",
                 latency_ms=round(latency_ms, 2),
             )
 
@@ -269,6 +369,7 @@ class GeminiAdapter(BaseAIAdapter):
                 prompt_version=request.prompt_version,
                 success=False,
                 error_message="Gemini API key is not configured.",
+                failure_category="missing_credentials",
                 latency_ms=round(latency_ms, 2),
             )
 
@@ -283,17 +384,11 @@ class GeminiAdapter(BaseAIAdapter):
         payload: Dict[str, Any] = {
             "contents": [{"parts": [{"text": schema_prompt}]}],
             "generationConfig": {
-                "temperature": request.temperature,
                 "maxOutputTokens": request.max_tokens,
                 "responseMimeType": "application/json",
                 "responseSchema": self._gemini_schema(request.response_schema),
             },
         }
-        # Gemini 2.5 uses the output-token ceiling for both reasoning and response
-        # text. Disable hidden reasoning for this constrained JSON task so short
-        # scripts do not spend their response budget before emitting JSON.
-        if "gemini-2.5" in self.default_model.casefold():
-            payload["generationConfig"]["thinkingConfig"] = {"thinkingBudget": 0}
         if request.system_prompt:
             payload["systemInstruction"] = {"parts": [{"text": request.system_prompt}]}
 
@@ -313,12 +408,29 @@ class GeminiAdapter(BaseAIAdapter):
                     prompt_version=request.prompt_version,
                     success=False,
                     error_message=self._sanitize_error(raw_err),
+                    failure_category=self.classify_http_status(resp.status_code),
                     latency_ms=round(latency_ms, 2),
                 )
 
             data = resp.json()
+            usage = data.get("usageMetadata", {})
+            prompt_tokens, completion_tokens, total_tokens, cost = self._usage_metrics(
+                data, schema_prompt, ""
+            )
             candidates = data.get("candidates", [])
             if not candidates:
+                prompt_feedback = data.get("promptFeedback", {})
+                block_reason = (
+                    str(prompt_feedback.get("blockReason") or "").upper()
+                    if isinstance(prompt_feedback, dict)
+                    else ""
+                )
+                blocked = block_reason in {
+                    "SAFETY",
+                    "BLOCKLIST",
+                    "PROHIBITED_CONTENT",
+                    "IMAGE_SAFETY",
+                }
                 return AIResponse(
                     text="",
                     provider=self.provider_id,
@@ -326,7 +438,16 @@ class GeminiAdapter(BaseAIAdapter):
                     task=request.task,
                     prompt_version=request.prompt_version,
                     success=False,
-                    error_message="Gemini returned no candidates.",
+                    error_message=(
+                        "Gemini structured output was blocked by its safety filters."
+                        if blocked
+                        else "Gemini returned no candidates."
+                    ),
+                    failure_category=("safety_refusal" if blocked else "malformed_output"),
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total_tokens,
+                    cost=cost,
                     latency_ms=round(latency_ms, 2),
                 )
 
@@ -338,7 +459,14 @@ class GeminiAdapter(BaseAIAdapter):
             if finish_reason and finish_reason not in {"STOP", "FINISH_REASON_UNSPECIFIED"}:
                 if finish_reason == "MAX_TOKENS":
                     finish_error = "Gemini reached max output tokens before completing structured JSON."
-                elif finish_reason == "SAFETY":
+                elif finish_reason in {
+                    "SAFETY",
+                    "BLOCKLIST",
+                    "PROHIBITED_CONTENT",
+                    "IMAGE_SAFETY",
+                    "SPII",
+                    "RECITATION",
+                }:
                     finish_error = "Gemini structured output was blocked by its safety filters."
                 else:
                     finish_error = f"Gemini structured output ended with finish reason {finish_reason}."
@@ -351,6 +479,23 @@ class GeminiAdapter(BaseAIAdapter):
                     prompt_version=request.prompt_version,
                     success=False,
                     error_message=finish_error,
+                    failure_category=(
+                        "malformed_output" if finish_reason == "MAX_TOKENS" else
+                        "safety_refusal"
+                        if finish_reason in {
+                            "SAFETY",
+                            "BLOCKLIST",
+                            "PROHIBITED_CONTENT",
+                            "IMAGE_SAFETY",
+                            "SPII",
+                            "RECITATION",
+                        }
+                        else "provider_error"
+                    ),
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total_tokens,
+                    cost=cost,
                     latency_ms=round(latency_ms, 2),
                 )
 
@@ -364,6 +509,10 @@ class GeminiAdapter(BaseAIAdapter):
                 clean_text = clean_text[:-3]
             clean_text = clean_text.strip()
 
+            prompt_tokens, completion_tokens, total_tokens, cost = self._usage_metrics(
+                data, schema_prompt, raw_text
+            )
+
             try:
                 parsed_json = json.loads(clean_text)
             except json.JSONDecodeError as jde:
@@ -376,15 +525,13 @@ class GeminiAdapter(BaseAIAdapter):
                     prompt_version=request.prompt_version,
                     success=False,
                     error_message=f"Schema parsing error: Malformed JSON output ({str(jde)})",
+                    failure_category="malformed_output",
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total_tokens,
+                    cost=cost,
                     latency_ms=round(latency_ms, 2),
                 )
-
-            usage = data.get("usageMetadata", {})
-            prompt_tokens = usage.get("promptTokenCount", max(1, len(schema_prompt.split())))
-            completion_tokens = usage.get("candidatesTokenCount", max(1, len(raw_text.split())))
-            completion_tokens += usage.get("thoughtsTokenCount", 0)
-            total_tokens = usage.get("totalTokenCount", prompt_tokens + completion_tokens)
-            cost = self.calculate_cost(prompt_tokens, completion_tokens)
 
             return AIResponse(
                 text=raw_text,
@@ -400,9 +547,8 @@ class GeminiAdapter(BaseAIAdapter):
                 latency_ms=round(latency_ms, 2),
                 success=True,
             )
-        except Exception as e:
+        except httpx.TimeoutException:
             latency_ms = (time.perf_counter() - start_time) * 1000
-            raw_err = f"Gemini connection error: {str(e)}"
             return AIResponse(
                 text="",
                 provider=self.provider_id,
@@ -410,7 +556,49 @@ class GeminiAdapter(BaseAIAdapter):
                 task=request.task,
                 prompt_version=request.prompt_version,
                 success=False,
-                error_message=self._sanitize_error(raw_err),
+                error_message="Gemini request timed out.",
+                failure_category="timeout",
+                latency_ms=round(latency_ms, 2),
+            )
+        except httpx.NetworkError as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            return AIResponse(
+                text="",
+                provider=self.provider_id,
+                model=self.default_model,
+                task=request.task,
+                prompt_version=request.prompt_version,
+                success=False,
+                error_message=self._sanitize_error(
+                    f"Gemini connection failed ({type(e).__name__}): [REDACTED]"
+                ),
+                failure_category="connection_error",
+                latency_ms=round(latency_ms, 2),
+            )
+        except (ValueError, TypeError, AttributeError) as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            return AIResponse(
+                text="",
+                provider=self.provider_id,
+                model=self.default_model,
+                task=request.task,
+                prompt_version=request.prompt_version,
+                success=False,
+                error_message=f"Gemini response parsing failed ({type(e).__name__}).",
+                failure_category="malformed_output",
+                latency_ms=round(latency_ms, 2),
+            )
+        except Exception as e:
+            latency_ms = (time.perf_counter() - start_time) * 1000
+            return AIResponse(
+                text="",
+                provider=self.provider_id,
+                model=self.default_model,
+                task=request.task,
+                prompt_version=request.prompt_version,
+                success=False,
+                error_message=f"Gemini provider error ({type(e).__name__}).",
+                failure_category="provider_error",
                 latency_ms=round(latency_ms, 2),
             )
 

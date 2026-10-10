@@ -142,12 +142,38 @@ def _limited_text(value: Any, limit: int = 2400) -> str:
 
 def _raise_generation_http_error(exc: ScriptGenerationError) -> None:
     message = str(exc)
-    for secret in (settings.GEMINI_API_KEY, settings.QWEN_API_KEY, settings.OPENAI_API_KEY):
-        if secret:
-            message = message.replace(secret, "[REDACTED]")
+    if settings.GEMINI_API_KEY:
+        message = message.replace(settings.GEMINI_API_KEY, "[REDACTED]")
     lower = message.casefold()
-    if "budget would be exceeded" in lower or "budget exceeded" in lower:
+    category = exc.failure_category
+    if category in {"budget_exceeded", "rate_limit"} or "budget would be exceeded" in lower or "budget exceeded" in lower:
         code = status.HTTP_429_TOO_MANY_REQUESTS
+        recovery = (
+            "Check the Gemini quota and billing limits, or retry after the rate limit resets."
+            if category == "rate_limit"
+            else "Adjust the local AI budget limit or reduce the requested generation size."
+        )
+    elif category == "missing_credentials" or "not configured" in lower or "api key" in lower:
+        code = status.HTTP_503_SERVICE_UNAVAILABLE
+        recovery = "Configure CONTENT_STUDIO_GEMINI (or a supported Gemini alias) and restart the API and worker."
+    elif category == "authentication":
+        code = status.HTTP_502_BAD_GATEWAY
+        recovery = "Gemini rejected the credential; check the key and its API access."
+    elif category == "authorization":
+        code = status.HTTP_502_BAD_GATEWAY
+        recovery = "Check Gemini model access and account billing or quota settings."
+    elif category in {"timeout", "connection_error", "server_error"}:
+        code = status.HTTP_503_SERVICE_UNAVAILABLE
+        recovery = "Check network connectivity and retry later."
+    elif category == "invalid_request":
+        code = status.HTTP_422_UNPROCESSABLE_ENTITY
+        recovery = "Check the configured Gemini model and structured request schema."
+    elif category == "safety_refusal":
+        code = status.HTTP_422_UNPROCESSABLE_ENTITY
+        recovery = "Review the request and selected source material before trying again."
+    elif category == "output_schema_validation":
+        code = status.HTTP_502_BAD_GATEWAY
+        recovery = "Gemini output did not match the script contract; no draft was saved. Retry later."
     elif any(
         marker in lower
         for marker in (
@@ -161,10 +187,12 @@ def _raise_generation_http_error(exc: ScriptGenerationError) -> None:
         )
     ):
         code = status.HTTP_422_UNPROCESSABLE_ENTITY
-    elif "not configured" in lower or "api key" in lower or "no configured ai providers" in lower:
-        code = status.HTTP_503_SERVICE_UNAVAILABLE
+        recovery = "Correct the request or select verified evidence that satisfies the script requirements."
     else:
         code = status.HTTP_502_BAD_GATEWAY
+        recovery = "Check Gemini model access, quota, and network connectivity, then retry."
+    if "no script" not in lower and "no draft" not in lower:
+        message = f"{message} {recovery} No script draft was persisted."
     raise HTTPException(status_code=code, detail=message) from exc
 
 
@@ -837,7 +865,7 @@ async def approve_script_quality_gate(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={
-                "message": "Mock and legacy-unverified scripts cannot be approved. Generate the script with Gemini or Qwen first.",
+                "message": "Mock and legacy-unverified scripts cannot be approved. Generate the script with a configured live AI provider first.",
                 "blocking_reasons": ["missing_live_provider_provenance"],
             },
         )

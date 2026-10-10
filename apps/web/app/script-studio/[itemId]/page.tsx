@@ -564,7 +564,7 @@ export default function ScriptStudioPage() {
                   </p>
                   <p className="text-[11px] text-slate-400">
                     {script.generation_metadata.provider} · {script.generation_metadata.model}
-                    {script.generation_metadata.fallback_used && " · fallback used"}
+                    {script.generation_metadata.fallback_used && " · historical fallback metadata"}
                   </p>
                   {(script.generation_metadata.total_tokens != null || script.generation_metadata.estimated_cost_usd != null) && (
                     <p className="text-[11px] text-slate-500">
@@ -715,7 +715,7 @@ export default function ScriptStudioPage() {
                 <p className="text-[11px] text-slate-500 leading-relaxed">
                   {script.generation_metadata?.approval_eligible
                     ? <>Final approval transitions this script to <span className="text-purple-300 font-semibold">SCRIPT_APPROVED</span> and locks the content item status. Blocking quality issues require an explicit override reason.</>
-                    : "This preview has no verified live-provider provenance. Generate with Gemini, Qwen, or OpenAI before requesting approval."}
+                    : "This preview has no verified live-provider provenance. Generate a Gemini script before requesting approval."}
                 </p>
                 <button
                   onClick={() => {

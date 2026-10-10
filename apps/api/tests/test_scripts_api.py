@@ -5,11 +5,17 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.scripts import get_ai_provider_engine
+from app.core.config import settings
+from app.engines.ai.contracts import AIResponse
+from app.engines.ai.engine import AIProviderEngine
+from app.main import app
 from app.models.content_family import ContentFamily
 from app.models.evidence import Claim, ClaimEvidence, EvidenceSource
 from app.models.opportunity import Opportunity
 from app.models.originality import OriginalityPlan
 from app.models.research import ResearchPacket
+from script_test_utils import ScriptProviderContractFixture
 
 
 @pytest.mark.asyncio
@@ -209,6 +215,10 @@ async def test_script_generation_uses_verified_selected_claims_and_keeps_mock_un
     )
     assert approval.status_code == 422
     assert "missing_live_provider_provenance" in approval.json()["detail"]["blocking_reasons"]
+    assert approval.json()["detail"]["message"] == (
+        "Mock and legacy-unverified scripts cannot be approved. "
+        "Generate the script with a configured live AI provider first."
+    )
 
 
 @pytest.mark.asyncio
@@ -269,3 +279,108 @@ async def test_separate_content_families_do_not_mix_selected_claims(
     assert first_claim in first_evidence
     assert first_claim not in second_evidence
     assert second_claim in second_evidence
+
+
+@pytest.mark.asyncio
+async def test_gemini_script_persists_provenance_evidence_and_unapproved_state(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch
+):
+    monkeypatch.setattr(settings, "AI_MOCK_MODE", False)
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "script-test-gemini-key")
+    monkeypatch.setattr(settings, "MAX_AI_COST_PER_DAY", 100.0)
+    monkeypatch.setattr(settings, "MAX_GENERATION_COST_PER_PROJECT", 100.0)
+
+    engine = AIProviderEngine()
+    script_fixture = ScriptProviderContractFixture()
+
+    monkeypatch.setattr(engine.gemini_adapter, "generate_structured", script_fixture.generate_structured)
+    monkeypatch.setitem(
+        app.dependency_overrides, get_ai_provider_engine, lambda: engine
+    )
+
+    item_id, _claim_text = await _create_approved_item(
+        client,
+        db_session,
+        "SQLite write-ahead logging",
+        "SQLite documentation says readers and writers can proceed concurrently.",
+    )
+    generated = await client.post(
+        "/api/v1/scripts/generate",
+        json={"content_item_id": item_id, "target_duration_sec": 60},
+    )
+
+    assert generated.status_code == 200, generated.text
+    script = generated.json()
+    metadata = script["generation_metadata"]
+    assert metadata["generation_mode"] == "live"
+    assert metadata["provider"] == "gemini"
+    assert metadata["model"] == "gemini-script-provider-test-fixture"
+    assert metadata["fallback_used"] is False
+    assert metadata["estimated_cost_usd"] > 0
+    assert metadata["research_packet_id"]
+    assert metadata["research_packet_version"] == 1
+    assert metadata["originality_plan_id"]
+    selected_claim_ids = metadata["evidence_claim_ids"]
+    assert selected_claim_ids
+    evidence_sections = [
+        section for section in script["sections"] if section["section_type"] == "evidence"
+    ]
+    assert any(
+        claim_id in section["linked_claim_ids"]
+        for claim_id in selected_claim_ids
+        for section in evidence_sections
+    )
+    assert script["is_approved"] is False
+    assert [attempt["provider"] for attempt in metadata["provider_attempts"]] == ["gemini"]
+    assert script_fixture.calls == 1
+
+    persisted = await client.get(f"/api/v1/scripts/item/{item_id}")
+    assert persisted.status_code == 200, persisted.text
+    persisted_script = persisted.json()
+    assert persisted_script["id"] == script["id"]
+    assert persisted_script["is_approved"] is False
+    assert persisted_script["generation_metadata"]["provider"] == "gemini"
+    assert persisted_script["generation_metadata"]["fallback_used"] is False
+
+
+@pytest.mark.asyncio
+async def test_gemini_failure_returns_recovery_guidance_without_persisting_a_draft(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch
+):
+    monkeypatch.setattr(settings, "AI_MOCK_MODE", False)
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "script-test-gemini-key")
+    engine = AIProviderEngine()
+    calls = []
+
+    async def fail_once(request):
+        calls.append(request)
+        return AIResponse(
+            text="",
+            provider="gemini",
+            model=settings.GEMINI_MODEL,
+            task=request.task,
+            success=False,
+            failure_category="rate_limit",
+            error_message="Gemini HTTP 429: Resource exhausted.",
+        )
+
+    monkeypatch.setattr(engine.gemini_adapter, "generate_structured", fail_once)
+    monkeypatch.setitem(app.dependency_overrides, get_ai_provider_engine, lambda: engine)
+    item_id, _claim_text = await _create_approved_item(
+        client,
+        db_session,
+        "SQLite WAL concurrency failure path",
+        "SQLite documentation says readers and writers can proceed concurrently.",
+    )
+
+    response = await client.post(
+        "/api/v1/scripts/generate",
+        json={"content_item_id": item_id, "target_duration_sec": 60},
+    )
+
+    assert response.status_code == 429
+    assert "quota" in response.json()["detail"].casefold()
+    assert "No script draft was persisted." in response.json()["detail"]
+    assert len(calls) == 1
+    lookup = await client.get(f"/api/v1/scripts/item/{item_id}")
+    assert lookup.status_code == 404

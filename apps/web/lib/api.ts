@@ -1391,6 +1391,34 @@ export interface AIProviderStatus {
   budget_exceeded: boolean;
 }
 
+export type AIProviderFailureCategory =
+  | "rate_limit"
+  | "timeout"
+  | "server_error"
+  | "connection_error"
+  | "malformed_output"
+  | "output_schema_validation"
+  | "authentication"
+  | "authorization"
+  | "safety_refusal"
+  | "invalid_request"
+  | "missing_credentials"
+  | "budget_exceeded"
+  | "provider_error";
+
+export interface AIProviderAttempt {
+  provider: string;
+  model: string;
+  success: boolean;
+  failure_category?: AIProviderFailureCategory | null;
+  error_message?: string | null;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  cost: number;
+  latency_ms: number;
+}
+
 export interface AIResponse {
   text: string;
   structured_data?: any;
@@ -1409,6 +1437,10 @@ export interface AIResponse {
   fallback_reason?: string;
   primary_provider?: string;
   primary_error?: string;
+  primary_model?: string;
+  primary_failure_category?: AIProviderFailureCategory | null;
+  failure_category?: AIProviderFailureCategory | null;
+  provider_attempts?: AIProviderAttempt[];
 }
 
 export interface AIInvocationLog {

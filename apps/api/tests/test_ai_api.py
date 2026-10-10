@@ -1,16 +1,44 @@
 import pytest
 from httpx import AsyncClient
+from app.core.config import settings
+from app.engines.ai.engine import AIProviderEngine
+from app.api.v1.ai import get_ai_engine
+from app.main import app
 
 
 @pytest.mark.asyncio
-async def test_ai_api_status(client: AsyncClient):
+async def test_ai_api_status(client: AsyncClient, monkeypatch):
     res = await client.get("/api/v1/ai/status")
     assert res.status_code == 200
     data = res.json()
     assert "mock_mode" in data
     assert data["primary_provider"] == "gemini"
-    assert data["fallback_provider"] == "qwen"
+    assert data["fallback_provider"] == "none"
+    assert data["fallback_enabled"] is False
     assert data["daily_budget_limit"] > 0.0
+
+
+@pytest.mark.asyncio
+async def test_ai_status_exposes_gemini_readiness_without_secrets(
+    client: AsyncClient, monkeypatch
+):
+    monkeypatch.setattr(settings, "AI_MOCK_MODE", True)
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "status-gemini-secret")
+    engine = AIProviderEngine()
+    monkeypatch.setitem(app.dependency_overrides, get_ai_engine, lambda: engine)
+
+    response = await client.get("/api/v1/ai/status")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["mock_mode"] is True
+    assert data["primary_provider"] == "gemini"
+    assert data["primary_configured"] is True
+    assert data["fallback_provider"] == "none"
+    assert data["fallback_configured"] is False
+    assert data["fallback_model"] == ""
+    assert data["fallback_enabled"] is False
+    assert "status-gemini-secret" not in response.text
 
 
 @pytest.mark.asyncio
@@ -82,7 +110,7 @@ async def test_ai_api_analyze(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_ai_api_technical_fallback(client: AsyncClient):
+async def test_ai_api_failure_does_not_route_to_fallback(client: AsyncClient):
     req_body = {
         "prompt": "Simulated hardware benchmark test with server overload",
         "task": "fallback_test",
@@ -92,9 +120,11 @@ async def test_ai_api_technical_fallback(client: AsyncClient):
     res = await client.post("/api/v1/ai/generate-text", json=req_body)
     assert res.status_code == 200
     data = res.json()
-    assert data["success"] is True
-    assert data["fallback_used"] is True
-    assert "503" in (data["fallback_reason"] or "")
+    assert data["success"] is False
+    assert data["provider"] == "mock"
+    assert data["fallback_used"] is False
+    assert data["failure_category"] == "server_error"
+    assert [attempt["provider"] for attempt in data["provider_attempts"]] == ["mock"]
 
 
 @pytest.mark.asyncio

@@ -109,7 +109,7 @@ CATALOG_DEFINITIONS = [
         "id": "ai",
         "name": "AI Provider Engine",
         "version": "1.0.0",
-        "description": "Pluggable LLM provider adapters (Gemini, Qwen) with technical fallback and token cost logging.",
+        "description": "Gemini live generation and deterministic offline mock with token cost logging.",
         "inputs": ["PromptRequest"],
         "outputs": ["ModelResponse"],
         "dependencies": [],
@@ -264,4 +264,3 @@ def register_all_catalog_engines() -> None:
             manifest = EngineManifest(**d)
             engine = CatalogEngine(manifest=manifest)
             engine_registry.register(engine)
-

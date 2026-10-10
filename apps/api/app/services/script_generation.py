@@ -83,6 +83,10 @@ class ScriptGenerationContext:
 class ScriptGenerationError(ValueError):
     """Raised when provider output cannot safely become a script draft."""
 
+    def __init__(self, message: str, *, failure_category: str | None = None) -> None:
+        super().__init__(message)
+        self.failure_category = failure_category
+
 
 class ProjectBudgetExceeded(ScriptGenerationError):
     """Raised before a provider call when the content-family budget is exhausted."""
@@ -138,9 +142,8 @@ class ScriptGenerationService:
         if not value:
             return value
         sanitized = value[:1000]
-        for secret in (settings.GEMINI_API_KEY, settings.QWEN_API_KEY, settings.OPENAI_API_KEY):
-            if secret:
-                sanitized = sanitized.replace(secret, "[REDACTED]")
+        if settings.GEMINI_API_KEY:
+            sanitized = sanitized.replace(settings.GEMINI_API_KEY, "[REDACTED]")
         return sanitized
 
     def _format_sections(self, content_format: str) -> list[str]:
@@ -486,7 +489,7 @@ class ScriptGenerationService:
         context: ScriptGenerationContext,
         evidence_claim_ids: list[str],
     ) -> dict[str, Any]:
-        live_provider = response.provider in ("gemini", "qwen", "openai")
+        live_provider = response.provider == "gemini"
         warnings = list(context.warnings)
         if response.fallback_used:
             warnings.append(
@@ -494,16 +497,57 @@ class ScriptGenerationService:
             )
         if not live_provider:
             warnings.append("Mock preview output is unverified and cannot be approved or exported.")
+        provider_attempts = [
+            attempt.model_dump(mode="json") for attempt in response.provider_attempts
+        ]
+        if not provider_attempts:
+            provider_attempts = [
+                {
+                    "provider": response.provider,
+                    "model": response.model,
+                    "success": response.success,
+                    "failure_category": response.failure_category,
+                    "error_message": response.error_message,
+                    "prompt_tokens": response.prompt_tokens,
+                    "completion_tokens": response.completion_tokens,
+                    "total_tokens": response.total_tokens,
+                    "cost": response.cost,
+                    "latency_ms": response.latency_ms,
+                }
+            ]
+        for attempt in provider_attempts:
+            attempt["error_message"] = self._safe_error(attempt.get("error_message"))
+        operation_prompt_tokens = sum(
+            int(attempt.get("prompt_tokens", 0)) for attempt in provider_attempts
+        )
+        operation_completion_tokens = sum(
+            int(attempt.get("completion_tokens", 0)) for attempt in provider_attempts
+        )
+        operation_total_tokens = sum(
+            int(attempt.get("total_tokens", 0)) for attempt in provider_attempts
+        )
+        operation_cost = round(
+            sum(float(attempt.get("cost", 0.0)) for attempt in provider_attempts), 6
+        )
+        operation_latency = round(
+            sum(float(attempt.get("latency_ms", 0.0)) for attempt in provider_attempts),
+            2,
+        )
         operation = {
             "task": response.task,
             "provider": response.provider,
             "model": response.model,
             "fallback_used": response.fallback_used,
-            "prompt_tokens": response.prompt_tokens,
-            "completion_tokens": response.completion_tokens,
-            "total_tokens": response.total_tokens,
-            "estimated_cost_usd": response.cost,
-            "latency_ms": response.latency_ms,
+            "primary_provider": response.primary_provider,
+            "primary_model": response.primary_model,
+            "primary_error": self._safe_error(response.primary_error),
+            "primary_failure_category": response.primary_failure_category,
+            "prompt_tokens": operation_prompt_tokens,
+            "completion_tokens": operation_completion_tokens,
+            "total_tokens": operation_total_tokens,
+            "estimated_cost_usd": operation_cost,
+            "latency_ms": operation_latency,
+            "provider_attempts": provider_attempts,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
         return {
@@ -513,13 +557,21 @@ class ScriptGenerationService:
             "fallback_used": response.fallback_used,
             "fallback_reason": self._safe_error(response.fallback_reason),
             "primary_provider": response.primary_provider,
+            "primary_model": response.primary_model,
             "primary_error": self._safe_error(response.primary_error),
+            "primary_failure_category": response.primary_failure_category,
             "prompt_version": response.prompt_version,
-            "prompt_tokens": response.prompt_tokens,
-            "completion_tokens": response.completion_tokens,
-            "total_tokens": response.total_tokens,
-            "estimated_cost_usd": response.cost,
-            "latency_ms": response.latency_ms,
+            "prompt_tokens": operation_prompt_tokens,
+            "completion_tokens": operation_completion_tokens,
+            "total_tokens": operation_total_tokens,
+            "estimated_cost_usd": operation_cost,
+            "latency_ms": operation_latency,
+            "response_prompt_tokens": response.prompt_tokens,
+            "response_completion_tokens": response.completion_tokens,
+            "response_total_tokens": response.total_tokens,
+            "response_cost_usd": response.cost,
+            "response_latency_ms": response.latency_ms,
+            "provider_attempts": provider_attempts,
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "approval_eligible": live_provider,
             "research_packet_id": context.research_packet_id,
@@ -570,7 +622,7 @@ class ScriptGenerationService:
             prompt_version="1.1.0",
             temperature=0.55,
             max_tokens=max_tokens,
-            allow_fallback=settings.AI_FALLBACK_ENABLED,
+            allow_fallback=False,
             metadata={
                 "project_id": project_id,
                 "project_spend_usd": project_spend_usd,
@@ -593,7 +645,11 @@ class ScriptGenerationService:
 
         response = await provider_engine.generate_structured(ai_request, session=session)
         if not response.success:
-            raise ScriptGenerationError(response.error_message or "The configured AI providers failed.")
+            raise ScriptGenerationError(
+                response.error_message
+                or "Gemini did not generate a valid script. Check model access, quota, or network, then retry.",
+                failure_category=response.failure_category,
+            )
         if response.structured_data is None:
             raise ScriptGenerationError("The AI provider returned no structured script response.")
 
@@ -601,7 +657,7 @@ class ScriptGenerationService:
             response.structured_data,
             request,
             context.numeric_evidence,
-            mock_output=response.provider not in ("gemini", "qwen", "openai"),
+            mock_output=response.provider != "gemini",
         )
         total_words = sum(section.word_count for section in sections)
         estimated_duration = sum(section.estimated_seconds for section in sections)
@@ -693,7 +749,7 @@ class ScriptGenerationService:
             prompt_version="1.1.0",
             temperature=0.5,
             max_tokens=1200,
-            allow_fallback=settings.AI_FALLBACK_ENABLED,
+            allow_fallback=False,
             metadata={
                 "project_id": project_id,
                 "project_spend_usd": project_spend_usd,
@@ -712,7 +768,11 @@ class ScriptGenerationService:
 
         response = await provider_engine.generate_structured(ai_request, session=session)
         if not response.success:
-            raise ScriptGenerationError(response.error_message or "The configured AI providers failed.")
+            raise ScriptGenerationError(
+                response.error_message
+                or "Gemini did not refine the script section. Check model access, quota, or network, then retry.",
+                failure_category=response.failure_category,
+            )
         if response.structured_data is None:
             raise ScriptGenerationError("The AI provider returned no structured refinement response.")
         try:
@@ -744,7 +804,7 @@ class ScriptGenerationService:
             raise ScriptGenerationError(
                 "Refinement includes blocked niche topics: " + ", ".join(blocked_topics) + "."
             )
-        if response.provider in ("gemini", "qwen", "openai"):
+        if response.provider == "gemini":
             unsupported = self._unsupported_metrics(
                 narration + " " + refined.visual_cue,
                 context.numeric_evidence,

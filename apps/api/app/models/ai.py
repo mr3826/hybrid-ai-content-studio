@@ -13,7 +13,7 @@ class AIInvocationLog(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
-    provider: Mapped[str] = mapped_column(String(50), nullable=False, index=True)  # gemini, qwen, openai, mock
+    provider: Mapped[str] = mapped_column(String(50), nullable=False, index=True)  # gemini/mock and historical provider IDs
     model: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     task: Mapped[str] = mapped_column(String(100), nullable=False, index=True)  # generate_text, generate_structured, analyze, etc.
     prompt_version: Mapped[str] = mapped_column(String(50), nullable=False, default="1.0.0")
@@ -25,7 +25,7 @@ class AIInvocationLog(Base, TimestampMixin):
     cost: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     latency_ms: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
-    # Status & Fallback Tracking
+    # Provider and historical routing compatibility metadata
     success: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     fallback_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
