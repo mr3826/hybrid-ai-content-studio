@@ -61,8 +61,23 @@ def test_quality_gate_evaluator_all_nine_dimensions():
     )
     media_pkg = SimpleNamespace(
         status="READY",
+        audio_path="/tmp/audio.wav",
         subtitle_path="/tmp/sub.srt",
         video_path="/tmp/video.mp4",
+        quality_checks={
+            "passed": True,
+            "production_eligible": True,
+            "ffprobe_verified": True,
+            "mock_audio": False,
+            "mock_visual_assets": False,
+            "video_codec": "h264",
+            "audio_codec": "aac",
+            "resolution": "1080x1920",
+            "video_duration_sec": 3.0,
+            "audio_duration_sec": 3.0,
+            "subtitles_requested": True,
+            "subtitles_burned": True,
+        },
     )
 
     result = evaluator.evaluate_all(

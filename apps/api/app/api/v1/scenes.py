@@ -412,6 +412,6 @@ async def generate_scene_placeholder(scene_id: str, db: AsyncSession = Depends(g
     )
 
     scene.visual_source = generated["file_path"]
-    scene.status = SceneStatus.READY
+    scene.status = SceneStatus.MOCK if generated.get("is_local_mock") else SceneStatus.READY
     updated = await repo.update_scene(scene)
     return _serialize_scene(updated)

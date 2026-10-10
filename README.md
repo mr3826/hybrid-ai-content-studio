@@ -262,9 +262,11 @@ Here is the complete step-by-step creator journey from day one to continuous pub
 
 ### Step 12: Voice Synthesis, Subtitles & Media Preview (`/media-studio`)
 1. Open **Media Studio** (`/media-studio`).
-2. Select local voice model (deterministic audio duration, speed, pitch).
-3. Generate timed **SRT/VTT Subtitles** with sub-second cue synchronization.
-4. Preview waveforms and composite the video locally with FFmpeg.
+2. Select an installed Windows SAPI5 voice. The voice list reports the actual voices and languages available on this computer; unsupported languages such as Bangla fail clearly.
+3. Attach a rights-cleared visual asset to every storyboard scene. Supported local image/video formats are read from `data/assets`; SVG scenes are rasterized with installed Edge or Chrome. Missing or invalid assets stop the render.
+4. Generate **SRT/VTT subtitles**. Scene boundaries use measured narration durations; individual word cue times are proportional estimates because forced alignment is not available.
+5. Run the local Python worker with FFmpeg and FFprobe installed. It creates and verifies the MP4 in the selected 9:16 or 16:9 dimensions. If captions are requested, a subtitle burn-in failure stops the render.
+6. Mock harmonic audio is available only for isolated tests and is labeled `MOCK`; mock or failed media cannot pass final QC or export.
 
 ### Step 13: 9-Dimension Creator Quality Gate (`/quality-gate`)
 1. Open **Quality Gate** (`/quality-gate`).

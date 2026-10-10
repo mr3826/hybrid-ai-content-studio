@@ -230,8 +230,21 @@ async def approve_final_quality_gate(
 
     # Check for blocking conditions
     is_blocked = eval_result["status"] == "BLOCKED"
+    blocked_dimensions = [
+        dimension for dimension in eval_result["dimensions"]
+        if dimension.status == DimensionStatus.BLOCKED
+    ]
+    media_qc_blocked = any(dimension.id == "media_qc" for dimension in blocked_dimensions)
+    if media_qc_blocked:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Final Quality Gate Blocked: production media verification failed. "
+                "Failed or mock media cannot be approved for export, even with an override reason."
+            ),
+        )
     if is_blocked and not payload.override_reason:
-        blocked_dims = [d.name for d in eval_result["dimensions"] if d.status == DimensionStatus.BLOCKED]
+        blocked_dims = [d.name for d in blocked_dimensions]
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(

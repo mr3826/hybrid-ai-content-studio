@@ -100,6 +100,9 @@ async def test_jobs_api_endpoints(client: AsyncClient):
 async def test_worker_polls_and_executes_job(client: AsyncClient, db_session: AsyncSession):
     # Enqueue an engine_run job for reference engine
     repo = JobRepository(db_session)
+    # Other queue endpoint tests may leave earlier pending fixtures in the shared SQLite test DB.
+    for pending in await repo.list_jobs(status="pending"):
+        await repo.cancel_job(pending.id)
     job = await repo.create_job(
         job_type="engine_run",
         engine_id="reference",

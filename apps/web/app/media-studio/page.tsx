@@ -31,13 +31,14 @@ import {
   SubtitleCue,
   SubtitleGenerationOutput,
   VoiceProfile,
+  VoiceCatalog,
   generateScriptSubtitles,
+  enqueueMediaJob,
   getMediaPackageByScript,
   getScriptByItem,
   getVoiceProfiles,
   listPublishableItems,
-  renderScriptMedia,
-  synthesizeScriptVoice,
+  waitForStudioJob,
 } from "@/lib/api";
 import { useLanguage } from "@/lib/LanguageContext";
 
@@ -52,7 +53,8 @@ export default function MediaStudioPage() {
 
   // State: Voice Profiles & Synthesis
   const [voices, setVoices] = useState<VoiceProfile[]>([]);
-  const [selectedVoiceId, setSelectedVoiceId] = useState<string>("en-US-Studio-Standard");
+  const [voiceCatalog, setVoiceCatalog] = useState<VoiceCatalog | null>(null);
+  const [selectedVoiceId, setSelectedVoiceId] = useState<string>("");
   const [speechSpeed, setSpeechSpeed] = useState<number>(1.0);
   const [synthesizing, setSynthesizing] = useState(false);
 
@@ -81,18 +83,19 @@ export default function MediaStudioPage() {
 
   const loadInitialData = async () => {
     try {
-      const [itemList, voiceList] = await Promise.all([
+      const [itemList, voiceCatalogResult] = await Promise.all([
         listPublishableItems(),
         getVoiceProfiles(),
       ]);
       setItems(itemList);
-      setVoices(voiceList);
+      setVoiceCatalog(voiceCatalogResult);
+      setVoices(voiceCatalogResult.voices);
       if (itemList.length > 0 && !selectedItemId) {
         setSelectedItemId(itemList[0].id);
       }
-      if (voiceList.length > 0) {
-        setSelectedVoiceId(voiceList[0].id);
-      }
+      setSelectedVoiceId(
+        voiceCatalogResult.default_voice_id || voiceCatalogResult.voices[0]?.id || ""
+      );
     } catch (e) {
       console.error("Failed to load initial media studio data:", e);
     }
@@ -114,22 +117,23 @@ export default function MediaStudioPage() {
       if (script) {
         const pkg = await getMediaPackageByScript(script.id);
         setMediaPackage(pkg);
-        if (pkg?.video_path) {
-          setRenderedVideoPath(pkg.video_path);
-        }
-        if (pkg?.quality_checks) {
-          setQualityReport(pkg.quality_checks);
-        }
+        setRenderedVideoPath(pkg?.video_path || null);
+        setQualityReport(pkg?.quality_checks || null);
+        setSubtitlesOutput(null);
         if (pkg?.resolution) {
           setRenderResolution(pkg.resolution as any);
         }
       } else {
         setMediaPackage(null);
+        setRenderedVideoPath(null);
+        setQualityReport(null);
         setSubtitlesOutput(null);
       }
     } catch (e) {
       console.error("Failed to load script or media package:", e);
       setMediaPackage(null);
+      setRenderedVideoPath(null);
+      setQualityReport(null);
     } finally {
       setLoadingScript(false);
     }
@@ -140,13 +144,21 @@ export default function MediaStudioPage() {
     if (!activeScript) return;
     try {
       setSynthesizing(true);
-      const res = await synthesizeScriptVoice(activeScript.id, {
-        voice_id: selectedVoiceId,
-        speed: speechSpeed,
+      setMediaPackage((current) => current ? { ...current, status: "SYNTHESIZING" } : current);
+      const job = await enqueueMediaJob(activeScript.id, {
+        action: "synthesize",
+        voice_config: {
+          voice_id: selectedVoiceId,
+          speed: speechSpeed,
+          mock_mode: false,
+        },
       });
-      // Refresh package
+      const completedJob = await waitForStudioJob(job.id);
       const updated = await getMediaPackageByScript(activeScript.id);
       setMediaPackage(updated);
+      if (completedJob.status !== "completed") {
+        throw new Error(completedJob.error || "Local media worker failed to synthesize narration.");
+      }
     } catch (e: any) {
       alert("Voice synthesis failed: " + (e.message || e));
     } finally {
@@ -161,7 +173,7 @@ export default function MediaStudioPage() {
       setGeneratingSubtitles(true);
       const res = await generateScriptSubtitles(activeScript.id, {
         format: subtitleFormat,
-        max_words_per_cue: maxWordsPerCue,
+        max_words_per_line: maxWordsPerCue,
       });
       setSubtitlesOutput(res);
       // Refresh package
@@ -176,8 +188,8 @@ export default function MediaStudioPage() {
 
   // Copy subtitle text
   const handleCopySubtitles = () => {
-    if (!subtitlesOutput?.srt_content) return;
-    navigator.clipboard.writeText(subtitlesOutput.srt_content);
+    if (!subtitlesOutput?.content_text) return;
+    navigator.clipboard.writeText(subtitlesOutput.content_text);
     setCopiedSubtitle(true);
     setTimeout(() => setCopiedSubtitle(false), 2000);
   };
@@ -187,15 +199,35 @@ export default function MediaStudioPage() {
     if (!activeScript) return;
     try {
       setRendering(true);
-      const res = await renderScriptMedia(activeScript.id, {
-        resolution: renderResolution,
-        burn_subtitles: burnSubtitles,
+      setMediaPackage((current) => current ? { ...current, status: "RENDERING" } : current);
+      const job = await enqueueMediaJob(activeScript.id, {
+        action: "render",
+        voice_config: {
+          voice_id: selectedVoiceId,
+          speed: speechSpeed,
+          mock_mode: false,
+        },
+        subtitle_config: {
+          format: subtitleFormat,
+          max_words_per_line: maxWordsPerCue,
+        },
+        render_config: {
+          resolution: renderResolution,
+          fps: 30,
+          burn_subtitles: burnSubtitles,
+        },
       });
-      setRenderedVideoPath(res.video_path);
-      setQualityReport(res.quality_report);
-      // Refresh package
+      const completedJob = await waitForStudioJob(job.id);
       const updated = await getMediaPackageByScript(activeScript.id);
       setMediaPackage(updated);
+      setRenderedVideoPath(updated?.video_path || null);
+      setQualityReport(updated?.quality_checks || null);
+      if (completedJob.status !== "completed" || updated?.status !== "READY") {
+        const issues = updated?.quality_checks?.issues?.join("; ");
+        throw new Error(completedJob.error || issues || "Media output did not pass production verification.");
+      }
+      setRenderedVideoPath(updated.video_path || null);
+      setQualityReport(updated.quality_checks || null);
     } catch (e: any) {
       alert("Media render failed: " + (e.message || e));
     } finally {
@@ -205,12 +237,26 @@ export default function MediaStudioPage() {
 
   // Status Badge Helper
   const getStatusBadge = (status?: string) => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case "ready":
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
             <CheckCircle2 className="w-3.5 h-3.5" />
             {t("mediaStudioPage.statusReady", "Ready")}
+          </span>
+        );
+      case "synthesized":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/10 text-sky-300 border border-sky-500/20">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Narration ready
+          </span>
+        );
+      case "mock":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-orange-500/10 text-orange-300 border border-orange-500/20">
+            <AlertCircle className="w-3.5 h-3.5" />
+            Mock output · not production-ready
           </span>
         );
       case "synthesizing":
@@ -243,6 +289,11 @@ export default function MediaStudioPage() {
     }
   };
 
+  const isMockOutput = mediaPackage?.status === "MOCK";
+  const videoAspectClass = renderResolution === "vertical_9_16"
+    ? "max-w-[280px] aspect-[9/16]"
+    : "max-w-[560px] aspect-video";
+
   return (
     <div className="space-y-8 pb-16">
       {/* Top Header */}
@@ -260,7 +311,7 @@ export default function MediaStudioPage() {
                 </span>
               </h1>
               <p className="text-sm text-slate-400 mt-0.5">
-                {t("mediaStudioPage.subtitle", "100% Offline Deterministic Speech Synthesis, Sub-Second Caption Sync & Local FFmpeg Composition")}
+                {t("mediaStudioPage.subtitle", "Installed offline system voices, measured scene timing, and local FFmpeg composition")}
               </p>
             </div>
           </div>
@@ -354,7 +405,7 @@ export default function MediaStudioPage() {
                       {t("mediaStudioPage.voiceSection.title", "Voice Synthesis")}
                     </h2>
                     <p className="text-xs text-slate-400">
-                      {t("mediaStudioPage.voiceSection.desc", "Local deterministic vocal harmonic synthesis and speech cadence")}
+                      {t("mediaStudioPage.voiceSection.desc", "Actual Windows SAPI5 voices installed on this computer")}
                     </p>
                   </div>
                 </div>
@@ -365,6 +416,16 @@ export default function MediaStudioPage() {
                 <label className="text-xs font-semibold text-slate-300 block">
                   {t("mediaStudioPage.voiceSection.selectVoice", "Voice Profile")}
                 </label>
+                {!voiceCatalog?.available && (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                    {voiceCatalog?.message || "No supported offline system voices are available on this computer."}
+                    {voiceCatalog?.unavailable_languages?.length ? (
+                      <div className="mt-1 text-amber-300/80">
+                        Unavailable languages: {voiceCatalog.unavailable_languages.join(", ")}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
                 <div className="grid grid-cols-1 gap-2">
                   {voices.map((v) => (
                     <button
@@ -379,15 +440,20 @@ export default function MediaStudioPage() {
                       <div>
                         <div className="font-semibold text-slate-200">{v.name}</div>
                         <div className="text-[11px] text-slate-500 mt-0.5">
-                          {v.gender} • {v.locale} • {v.sample_rate / 1000}kHz PCM
+                          {v.gender} • {v.locale}
                         </div>
                       </div>
                       <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                        Offline
+                        Installed
                       </span>
                     </button>
                   ))}
                 </div>
+                {!!voiceCatalog?.available && !!voiceCatalog.unavailable_languages.length && (
+                  <p className="text-[11px] text-amber-300/80">
+                    Unavailable languages: {voiceCatalog.unavailable_languages.join(", ")}
+                  </p>
+                )}
               </div>
 
               {/* Speech speed slider */}
@@ -417,7 +483,7 @@ export default function MediaStudioPage() {
               {/* Action Button */}
               <button
                 onClick={handleSynthesizeVoice}
-                disabled={synthesizing}
+                disabled={synthesizing || !voiceCatalog?.available || !selectedVoiceId}
                 className="w-full py-2.5 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 disabled:opacity-50 transition-all"
               >
                 {synthesizing ? (
@@ -598,7 +664,7 @@ export default function MediaStudioPage() {
                         <div className="flex items-center justify-between text-[11px] font-mono text-amber-400/90">
                           <span>#{cue.index}</span>
                           <span>
-                            {cue.start_timecode.split(",")[0]} ➔ {cue.end_timecode.split(",")[0]}
+                            {cue.start_timestamp.slice(0, 8)} ➔ {cue.end_timestamp.slice(0, 8)}
                           </span>
                         </div>
                         <p className="text-slate-200 font-medium leading-relaxed">
@@ -692,7 +758,7 @@ export default function MediaStudioPage() {
               {/* Render Button */}
               <button
                 onClick={handleRenderMedia}
-                disabled={rendering}
+                disabled={rendering || (!mediaPackage?.audio_path && (!voiceCatalog?.available || !selectedVoiceId))}
                 className="w-full py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 disabled:opacity-50 transition-all"
               >
                 {rendering ? (
@@ -711,24 +777,24 @@ export default function MediaStudioPage() {
               {/* Rendered Video Card & Quality Report */}
               {renderedVideoPath && (
                 <div className="space-y-4 pt-4 border-t border-slate-800/80">
-                  <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-xs space-y-4">
+                  <div className={`p-4 rounded-xl text-xs space-y-4 ${isMockOutput ? "bg-orange-950/20 border border-orange-500/30" : "bg-emerald-950/20 border border-emerald-500/30"}`}>
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-emerald-400 flex items-center gap-1.5 text-sm">
-                        <CheckCircle2 className="w-4 h-4" />
-                        {t("mediaStudioPage.renderSection.videoPreview", "Master Reel Video Ready")}
+                      <span className={`font-semibold flex items-center gap-1.5 text-sm ${isMockOutput ? "text-orange-300" : "text-emerald-400"}`}>
+                        {isMockOutput ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                        {isMockOutput ? "Mock preview · not production-ready" : "Verified production video"}
                       </span>
-                      <span className="text-[10px] uppercase font-mono px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
-                        {renderResolution === "vertical_9_16" ? "9:16 Vertical" : "16:9 Landscape"}
+                      <span className={`text-[10px] uppercase font-mono px-2.5 py-1 rounded-full font-bold ${isMockOutput ? "bg-orange-500/20 text-orange-300 border border-orange-500/30" : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"}`}>
+                        {mediaPackage?.resolution || (renderResolution === "vertical_9_16" ? "1080x1920" : "1920x1080")}
                       </span>
                     </div>
 
                     {/* Inline Video Player */}
-                    <div className="relative mx-auto max-w-[280px] rounded-2xl overflow-hidden border-2 border-emerald-500/40 shadow-2xl bg-black aspect-[9/16]">
+                    <div className={`relative mx-auto ${videoAspectClass} rounded-2xl overflow-hidden border-2 ${isMockOutput ? "border-orange-500/40" : "border-emerald-500/40"} shadow-2xl bg-black`}>
                       <video
                         src={`http://localhost:8400/assets/video/${renderedVideoPath.split(/[/\\]/).pop()}`}
                         controls
                         playsInline
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                       />
                     </div>
 
@@ -747,28 +813,34 @@ export default function MediaStudioPage() {
                     </div>
 
                     {qualityReport && (
-                      <div className="space-y-1 pt-1 text-[11px] text-slate-300 border-t border-emerald-500/20">
+                      <div className="space-y-1 pt-1 text-[11px] text-slate-300 border-t border-slate-700">
                         <div className="font-semibold text-slate-200">
                           {t("mediaStudioPage.renderSection.qualityReport", "Quality & Compliance Report")}:
                         </div>
                         <div className="flex items-center justify-between">
-                          <span>Empirical Visual Ratio:</span>
-                          <span className="font-mono text-emerald-400 font-semibold">
-                            {qualityReport.empirical_visual_ratio || 80}%
+                          <span>Video / audio codec:</span>
+                          <span className="font-mono text-slate-300">
+                            {qualityReport.video_codec || "—"} / {qualityReport.audio_codec || "—"}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span>Audio Sample Rate:</span>
+                          <span>Measured video / audio:</span>
                           <span className="font-mono text-slate-300">
-                            {qualityReport.audio_sample_rate || "44,100 Hz"}
+                            {qualityReport.video_duration_sec ?? "—"}s / {qualityReport.audio_duration_sec ?? "—"}s
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span>Target Duration:</span>
+                          <span>FFprobe verified:</span>
                           <span className="font-mono text-slate-300">
-                            {qualityReport.target_duration_sec || mediaPackage?.total_duration_sec?.toFixed(1) || 30}s
+                            {qualityReport.ffprobe_verified ? "Yes" : "No"} · sync delta {qualityReport.duration_sync_delta ?? "—"}s
                           </span>
                         </div>
+                        {qualityReport.timing_limitation && (
+                          <p className="pt-1 text-slate-400">{qualityReport.timing_limitation}</p>
+                        )}
+                        {qualityReport.issues?.length > 0 && (
+                          <p className="pt-1 text-orange-200">{qualityReport.issues.join("; ")}</p>
+                        )}
                       </div>
                     )}
                   </div>

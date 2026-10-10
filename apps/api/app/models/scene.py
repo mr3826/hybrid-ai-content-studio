@@ -55,10 +55,11 @@ class VisualPriority:
 class SceneStatus:
     DRAFT = "DRAFT"
     READY = "READY"
+    MOCK = "MOCK"
     MISSING_ASSET = "MISSING_ASSET"
     RIGHTS_BLOCKED = "RIGHTS_BLOCKED"
 
-    ALL = [DRAFT, READY, MISSING_ASSET, RIGHTS_BLOCKED]
+    ALL = [DRAFT, READY, MOCK, MISSING_ASSET, RIGHTS_BLOCKED]
 
 
 class TransitionType:

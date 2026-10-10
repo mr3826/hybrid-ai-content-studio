@@ -353,7 +353,7 @@ export const translations: Record<Locale, Translations> = {
     },
     mediaStudioPage: {
       title: "ভয়েস, সাবটাইটেল ও মিডিয়া স্টুডিও",
-      subtitle: "১০০% লোকাল স্পিচ সিন্থেসিস, সাব-সেকেন্ড সাবটাইটেল সিঙ্ক এবং অফলাইন FFmpeg কম্পোজিশন",
+      subtitle: "ইনস্টল করা Windows SAPI5 ভয়েস, সিঙ্কড ক্যাপশন এবং লোকাল FFmpeg রেন্ডারিং",
       scriptSelector: "স্ক্রিপ্ট নির্বাচন করুন",
       selectScriptPlaceholder: "-- অডিও-ভিডিও তৈরির জন্য স্ক্রিপ্ট বেছে নিন --",
       noScriptSelected: "কোনো স্ক্রিপ্ট নির্বাচিত হয়নি। অডিও বা ভিডিও তৈরি করতে উপরে একটি অনুমোদিত স্ক্রিপ্ট নির্বাচন করুন।",
@@ -365,7 +365,7 @@ export const translations: Record<Locale, Translations> = {
       statusFailed: "ব্যর্থ",
       voiceSection: {
         title: "ভয়েস সিন্থেসিস (অফলাইন মোড)",
-        desc: "লোকাল ডিটারমিনিস্টিক পিচ মড্যুলেশন ও স্পিচ ক্যাডেন্স",
+        desc: "এই কম্পিউটারে ইনস্টল করা Windows SAPI5 ভয়েস",
         selectVoice: "ভয়েস প্রোফাইল",
         speed: "স্পিচ স্পিড (গতি)",
         synthesizeBtn: "ভয়েস সিন্থেসাইজ করুন",
@@ -1105,7 +1105,7 @@ export const translations: Record<Locale, Translations> = {
     },
     mediaStudioPage: {
       title: "Voice, Subtitle & Media Studio",
-      subtitle: "100% Offline Deterministic Speech Synthesis, Sub-Second Caption Sync & Local FFmpeg Composition",
+      subtitle: "Installed offline Windows SAPI5 voices, synchronized captions & local FFmpeg rendering",
       scriptSelector: "Select Script",
       selectScriptPlaceholder: "-- Choose a script for media production --",
       noScriptSelected: "No script selected. Please choose an approved script above to produce audio and video.",
@@ -1117,7 +1117,7 @@ export const translations: Record<Locale, Translations> = {
       statusFailed: "Failed",
       voiceSection: {
         title: "Voice Synthesis (Offline Mode)",
-        desc: "Local deterministic vocal harmonic synthesis and speech cadence",
+        desc: "Installed offline Windows SAPI5 voices",
         selectVoice: "Voice Profile",
         speed: "Speech Speed",
         synthesizeBtn: "Synthesize Voice Tracks",
@@ -1510,4 +1510,3 @@ export const translations: Record<Locale, Translations> = {
     },
   },
 };
-

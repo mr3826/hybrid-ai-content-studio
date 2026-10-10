@@ -33,7 +33,7 @@ class Settings(BaseSettings):
 
     # Provider Mode Flags
     AI_MOCK_MODE: bool = True
-    TTS_MOCK_MODE: bool = True
+    TTS_MOCK_MODE: bool = False
     FFMPEG_BINARY: str = "ffmpeg"
 
     # AI Provider Settings

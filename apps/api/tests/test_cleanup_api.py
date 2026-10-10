@@ -4,7 +4,7 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_cleanup_and_backup_api_full_flow(client: AsyncClient):
+async def test_cleanup_and_backup_api_full_flow(client: AsyncClient, isolated_backup_workspace):
     # 1. Get reliability summary
     summary_res = await client.get("/api/v1/cleanup/summary")
     assert summary_res.status_code == 200

@@ -81,7 +81,7 @@ async def test_scene_studio_api_full_flow(client: AsyncClient):
     with_placeholder = gen_placeholder_res.json()
     assert with_placeholder["visual_source"] is not None
     assert with_placeholder["visual_source"].endswith(".svg")
-    assert with_placeholder["status"] == "READY"
+    assert with_placeholder["status"] == "MOCK"
 
     # 6. Validate storyboard
     val_res = await client.post(f"/api/v1/scenes/validate-storyboard/{script_id}")
