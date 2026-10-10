@@ -27,3 +27,14 @@ async def client():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as ac:
         yield ac
+
+
+@pytest.fixture(autouse=True)
+def enforce_test_isolation():
+    """Guarantee automated tests never make live AI provider calls and remain strictly isolated."""
+    from app.core.config import settings
+    prev_mode = settings.AI_MOCK_MODE
+    settings.AI_MOCK_MODE = True
+    yield
+    settings.AI_MOCK_MODE = prev_mode
+

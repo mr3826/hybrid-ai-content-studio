@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     MAX_VIDEO_SECONDS_PER_PROJECT: int = 180
 
     # Provider Mode Flags
-    AI_MOCK_MODE: bool = False
+    AI_MOCK_MODE: bool = True
     TTS_MOCK_MODE: bool = True
     FFMPEG_BINARY: str = "ffmpeg"
 
