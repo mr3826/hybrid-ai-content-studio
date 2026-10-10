@@ -19,7 +19,7 @@ class GeminiAdapter(BaseAIAdapter):
         api_key: Optional[str] = None,
         model: str = "gemini-3.8-flash",
         cost_rates: Optional[Dict[str, float]] = None,
-        timeout_seconds: float = 30.0,
+        timeout_seconds: float = 90.0,
     ):
         super().__init__(
             provider_id="gemini",
@@ -38,6 +38,12 @@ class GeminiAdapter(BaseAIAdapter):
             headers["x-goog-api-key"] = self.api_key
         return headers
 
+    def _generation_config(self, max_output_tokens: int) -> Dict[str, Any]:
+        config: Dict[str, Any] = {"maxOutputTokens": max_output_tokens}
+        if self.default_model.startswith("gemini-3."):
+            config["thinkingConfig"] = {"thinkingLevel": "low"}
+        return config
+
     def _sanitize_error(self, message: str) -> str:
         if not message:
             return ""
@@ -45,6 +51,22 @@ class GeminiAdapter(BaseAIAdapter):
         if self.api_key:
             sanitized = sanitized.replace(self.api_key, "[REDACTED]")
         return sanitized
+
+    def _http_error_message(self, status_code: int, response_text: str) -> str:
+        detail = response_text[:200]
+        try:
+            body = json.loads(response_text)
+        except (TypeError, ValueError):
+            body = None
+        provider_error = body.get("error") if isinstance(body, dict) else None
+        if isinstance(provider_error, dict):
+            provider_message = provider_error.get("message")
+            provider_status = provider_error.get("status")
+            if isinstance(provider_message, str) and provider_message.strip():
+                detail = provider_message.strip()[:1000]
+                if isinstance(provider_status, str) and provider_status:
+                    detail = f"{detail} [{provider_status[:80]}]"
+        return self._sanitize_error(f"Gemini HTTP {status_code}: {detail}")
 
     def _usage_metrics(
         self, data: Dict[str, Any], prompt_text: str, output_text: str
@@ -158,9 +180,7 @@ class GeminiAdapter(BaseAIAdapter):
 
         payload: Dict[str, Any] = {
             "contents": [{"parts": [{"text": request.prompt}]}],
-            "generationConfig": {
-                "maxOutputTokens": request.max_tokens,
-            },
+            "generationConfig": self._generation_config(request.max_tokens),
         }
         if request.system_prompt:
             payload["systemInstruction"] = {"parts": [{"text": request.system_prompt}]}
@@ -172,7 +192,6 @@ class GeminiAdapter(BaseAIAdapter):
             latency_ms = (time.perf_counter() - start_time) * 1000
 
             if resp.status_code != 200:
-                raw_err = f"Gemini HTTP {resp.status_code}: {resp.text[:200]}"
                 return AIResponse(
                     text="",
                     provider=self.provider_id,
@@ -180,7 +199,7 @@ class GeminiAdapter(BaseAIAdapter):
                     task=request.task,
                     prompt_version=request.prompt_version,
                     success=False,
-                    error_message=self._sanitize_error(raw_err),
+                    error_message=self._http_error_message(resp.status_code, resp.text),
                     failure_category=self.classify_http_status(resp.status_code),
                     latency_ms=round(latency_ms, 2),
                 )
@@ -357,7 +376,7 @@ class GeminiAdapter(BaseAIAdapter):
         payload: Dict[str, Any] = {
             "contents": [{"parts": [{"text": schema_prompt}]}],
             "generationConfig": {
-                "maxOutputTokens": request.max_tokens,
+                **self._generation_config(request.max_tokens),
                 "responseFormat": {
                     "text": {
                         "mimeType": "APPLICATION_JSON",
@@ -376,7 +395,6 @@ class GeminiAdapter(BaseAIAdapter):
             latency_ms = (time.perf_counter() - start_time) * 1000
 
             if resp.status_code != 200:
-                raw_err = f"Gemini HTTP {resp.status_code}: {resp.text[:200]}"
                 return AIResponse(
                     text="",
                     provider=self.provider_id,
@@ -384,7 +402,7 @@ class GeminiAdapter(BaseAIAdapter):
                     task=request.task,
                     prompt_version=request.prompt_version,
                     success=False,
-                    error_message=self._sanitize_error(raw_err),
+                    error_message=self._http_error_message(resp.status_code, resp.text),
                     failure_category=self.classify_http_status(resp.status_code),
                     latency_ms=round(latency_ms, 2),
                 )

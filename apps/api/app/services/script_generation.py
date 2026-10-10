@@ -196,16 +196,12 @@ class ScriptGenerationService:
         elif content_format == "newsletter" and not 350 <= total_words <= 750:
             raise ScriptGenerationError("Newsletter must contain between 350 and 750 words.")
 
-    def _response_schema(self, claim_ids: list[str], content_format: str) -> dict[str, Any]:
+    def _response_schema(self, content_format: str) -> dict[str, Any]:
         pydantic_schema = GeneratedScript.model_json_schema()
         section_schema = deepcopy(pydantic_schema.get("$defs", {}).get("GeneratedSection", {}))
         section_properties = section_schema.get("properties", {})
         if isinstance(section_properties.get("section_type"), dict):
             section_properties["section_type"]["enum"] = list(self._format_sections(content_format))
-        claim_list = section_properties.get("linked_claim_ids", {})
-        item_schema = claim_list.get("items") if isinstance(claim_list, dict) else None
-        if isinstance(item_schema, dict):
-            item_schema["enum"] = claim_ids
         section_schema["required"] = ["section_type", "order_index", "heading", "narration"]
         section_count = len(self._format_sections(content_format))
         return {
@@ -602,10 +598,10 @@ class ScriptGenerationService:
             raise ScriptGenerationError("Select at least one verified evidence claim before generating a script.")
 
         prompt = self._generation_prompt(request, guidance, context)
-        response_schema = self._response_schema(claim_ids, request.format)
+        response_schema = self._response_schema(request.format)
         max_tokens = min(
             8192,
-            max(1200, int(max(500, request.target_duration_sec * 7))),
+            max(2048, int(max(500, request.target_duration_sec * 7))),
         )
         if request.format == "article":
             max_tokens = 3000
@@ -737,9 +733,6 @@ class ScriptGenerationService:
             raise ScriptGenerationError("Select verified evidence claims before refining a script section.")
 
         schema = GeneratedRefinement.model_json_schema()
-        properties = schema.get("properties", {})
-        if isinstance(properties.get("linked_claim_ids", {}).get("items"), dict):
-            properties["linked_claim_ids"]["items"]["enum"] = allowed_claim_ids
         mock_output = self._mock_refinement(request)
         ai_request = StructuredGenerationRequest(
             prompt=self._refinement_prompt(request, evidence_claims, guidance),

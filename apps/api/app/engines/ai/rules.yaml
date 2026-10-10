@@ -1,5 +1,5 @@
 version: "1.0.0"
-timeout_seconds: 30
+timeout_seconds: 90
 max_tokens_default: 2048
 cost_rates:
   gemini:

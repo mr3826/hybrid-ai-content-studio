@@ -103,6 +103,7 @@ async def test_gemini_38_structured_request_uses_current_json_schema_format_and_
     assert calls[0]["headers"]["x-goog-api-key"] == "test-gemini-key"
     generation = calls[0]["json"]["generationConfig"]
     assert generation["maxOutputTokens"] == 2048
+    assert generation["thinkingConfig"] == {"thinkingLevel": "low"}
     assert generation["responseFormat"]["text"]["mimeType"] == "APPLICATION_JSON"
     schema = generation["responseFormat"]["text"]["schema"]
     assert schema["type"] == "object"
@@ -115,7 +116,36 @@ async def test_gemini_38_structured_request_uses_current_json_schema_format_and_
     assert sections["items"]["additionalProperties"] is False
     assert sections["items"]["properties"]["narration"]["type"] == "string"
     assert "temperature" not in generation
-    assert "thinkingConfig" not in generation
+
+
+@pytest.mark.asyncio
+async def test_gemini_25_text_request_omits_gemini3_thinking_config(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        gemini_module.httpx,
+        "AsyncClient",
+        lambda **kwargs: _Client(
+            response=_Response(
+                data={
+                    "candidates": [
+                        {
+                            "content": {"parts": [{"text": "Response"}]},
+                            "finishReason": "STOP",
+                        }
+                    ]
+                }
+            ),
+            calls=calls,
+            **kwargs,
+        ),
+    )
+
+    result = await GeminiAdapter(api_key="test-key", model="gemini-2.5-flash").generate_text(
+        TextGenerationRequest(prompt="Test request")
+    )
+
+    assert result.success is True
+    assert "thinkingConfig" not in calls[0]["json"]["generationConfig"]
 
 
 def test_gemini_response_schema_filters_unsupported_pydantic_keywords():
@@ -146,6 +176,46 @@ def test_gemini_response_schema_filters_unsupported_pydantic_keywords():
         "required": ["name"],
         "additionalProperties": False,
     }
+
+
+@pytest.mark.asyncio
+async def test_gemini_structured_http_error_preserves_provider_diagnostic_and_redacts_key(monkeypatch):
+    provider_message = (
+        "Invalid value at 'generation_config.response_format.text.schema.properties.output.type' "
+        "(type.googleapis.com/google.ai.generativelanguage.v1beta.Schema.Type)"
+    )
+    monkeypatch.setattr(
+        gemini_module.httpx,
+        "AsyncClient",
+        lambda **kwargs: _Client(
+            response=_Response(
+                status_code=400,
+                text=json.dumps(
+                    {
+                        "error": {
+                            "code": 400,
+                            "status": "INVALID_ARGUMENT",
+                            "message": f"{provider_message} test-gemini-key",
+                        }
+                    }
+                ),
+            ),
+            **kwargs,
+        ),
+    )
+
+    result = await GeminiAdapter(api_key="test-gemini-key").generate_structured(
+        StructuredGenerationRequest(
+            prompt="Return an object",
+            response_schema={"type": "object", "properties": {}, "required": []},
+        )
+    )
+
+    assert result.success is False
+    assert result.failure_category == "invalid_request"
+    assert provider_message in (result.error_message or "")
+    assert "INVALID_ARGUMENT" in (result.error_message or "")
+    assert "test-gemini-key" not in (result.error_message or "")
 
 
 @pytest.mark.asyncio

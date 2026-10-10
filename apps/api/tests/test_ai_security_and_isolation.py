@@ -144,7 +144,7 @@ async def test_gemini_structured_generation_sends_bounded_schema_for_38():
     assert sections["items"]["additionalProperties"] is False
     assert "responseSchema" not in generation_config
     assert "responseMimeType" not in generation_config
-    assert "thinkingConfig" not in generation_config
+    assert generation_config["thinkingConfig"] == {"thinkingLevel": "low"}
     assert "temperature" not in generation_config
 
 

@@ -2,9 +2,9 @@
 
 ## Supported providers
 
-Live generation uses Google Gemini only. `AI_MOCK_MODE=true` routes generation to the deterministic local adapter and makes no Gemini request. Live mode sends one provider request per operation; errors are returned with a typed category and recovery guidance. There is no automatic retry or provider fallback.
+Live generation uses Google Gemini only. `AI_MOCK_MODE=true` routes generation to the deterministic local adapter and makes no Gemini request. Live mode sends one provider request per operation, with a 90-second request timeout; errors are returned with a typed category and recovery guidance. There is no automatic retry or provider fallback.
 
-The default model is `gemini-3.8-flash`, configured by `GEMINI_MODEL`. Google lists this as a stable Gemini 3 Flash model and documents structured JSON output for the Generate Content API. The adapter uses the current `generateContent` `generationConfig.responseFormat.text.schema` contract, filters Pydantic-only keywords to the documented JSON Schema subset, and the engine enforces the full local JSON Schema before script validation or persistence.
+The default model is `gemini-3.8-flash`, configured by `GEMINI_MODEL`. Google lists this as a stable Gemini 3 Flash model and documents structured JSON output for the Generate Content API. Gemini 3 requests use `thinkingLevel: low`: Gemini counts internal thought tokens against `maxOutputTokens`, and Google's guidance recommends a lower thinking level to reduce latency and truncation. Other model families do not receive this Gemini 3-only field. The adapter uses the current `generateContent` `generationConfig.responseFormat.text.schema` contract, filters Pydantic-only keywords to the documented JSON Schema subset, and the engine enforces the full local JSON Schema before script validation or persistence.
 
 ## Credential setup
 
@@ -24,7 +24,7 @@ Set `AI_MOCK_MODE=false` only when a live Gemini credential is configured. Keep 
 
 ## Model and cost
 
-The model name is configurable so a stable model can be changed without hardcoding provider names through the application. The default is selected provisionally from Google's current catalog; account-specific availability is confirmed by the live smoke's non-generation model lookup.
+The selected release model is the stable `gemini-3.8-flash`. Google's model catalog documents structured outputs and low/medium/high thinking support, and the live acceptance smoke confirmed this account can call `generateContent`. `GEMINI_MODEL` remains configurable for a deliberate manual change; the application does not switch models to work around access or quota failures.
 
 The AI engine's current Gemini estimates use the introductory Gemini 3.8 Flash standard rates documented for use through December 31, 2026: **$0.75 per million input tokens** and **$3.75 per million output tokens**. Google's published standard rates change to $1.50 / $7.50 per million tokens beginning January 1, 2027. Update `apps/api/app/engines/ai/rules.yaml` before that date so budget estimates and telemetry stay aligned with the active price schedule. These are estimates; the provider's actual account billing is authoritative.
 
@@ -44,7 +44,7 @@ The smoke first performs a model availability lookup. If it succeeds, the test m
 
 ## Current acceptance status — 2026-10-10
 
-The configured model lookup returned HTTP 200. The first authorized generation request returned HTTP 400 because the deprecated `responseSchema` rejected `additionalProperties`; the explicitly authorized follow-up returned HTTP 400 `INVALID_ARGUMENT`. No draft was persisted by either attempt. The adapter now uses the current `responseFormat.text.schema` payload, but that migration has not yet been exercised against the live provider. Successful generation, persistence, provenance read-back, and unapproved status still need a successful acceptance smoke. See [Phase status](PHASE_STATUS.md) for the current verification record.
+The opt-in live acceptance smoke passed with `gemini-3.8-flash`. Model preflight confirmed `generateContent`; one structured script request returned HTTP 200, passed local schema, evidence, pacing, and brand validation, persisted successfully, and read back with the selected claim, research packet/version, originality plan, provider/model metadata, and unapproved status. The response reported **1,703 total tokens** and an estimated cost of **$0.002777**; this is application telemetry, not a billing statement. Earlier requests against the superseded payload and default thinking level failed without persisting drafts. The normal application path still makes one provider request per operation and has no automatic retry or provider fallback. See [Phase status](PHASE_STATUS.md) for the full verification record.
 
 ## Official Google references
 
