@@ -45,7 +45,9 @@ def _write_media_fixture_png(path: Path, color: tuple[int, int, int]) -> Path:
 
 
 @pytest.mark.asyncio
-async def test_e2e_24_step_creator_lifecycle(client: AsyncClient, db_session: AsyncSession, monkeypatch, tmp_path):
+async def test_e2e_24_step_creator_lifecycle(
+    client: AsyncClient, db_session: AsyncSession, monkeypatch, tmp_path, isolated_backup_workspace
+):
     """
     Executes a comprehensive, uninterrupted 24-step creator workflow through the API,
     validating the complete V1 Definition of Done (Sections 48 & 69).
