@@ -57,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 type="button"
                 data-testid="mobile-menu-close-button"
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
                 aria-label={t("header.closeMenu", "Close menu")}
               >
                 <X className="w-5 h-5" />
@@ -80,7 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               type="button"
               data-testid="mobile-menu-button"
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+              className="lg:hidden flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-800/80 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50"
               aria-label={t("header.menu", "Menu")}
             >
               <Menu className="w-5 h-5" />

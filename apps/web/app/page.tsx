@@ -21,9 +21,11 @@ import {
 import {
   CockpitSummary,
   StudioStatus,
+  ContentFamilyDetail,
   ContentFamilyItem,
   getCockpitSummary,
   getStudioStatus,
+  getContentFamily,
   listContentFamilies,
   approveOpportunityResearch,
   watchOpportunity,
@@ -31,12 +33,15 @@ import {
   runOpportunities,
 } from "@/lib/api";
 import { useLanguage } from "@/lib/LanguageContext";
+import { CreatorWorkflow } from "@/components/CreatorWorkflow";
 
 export default function CreatorCockpitPage() {
   const { t } = useLanguage();
   const [summary, setSummary] = useState<CockpitSummary | null>(null);
   const [studioStatus, setStudioStatus] = useState<StudioStatus | null>(null);
   const [families, setFamilies] = useState<ContentFamilyItem[]>([]);
+  const [currentFamily, setCurrentFamily] = useState<ContentFamilyDetail | null>(null);
+  const [workflowLoadError, setWorkflowLoadError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [runningAnalysis, setRunningAnalysis] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "info" | "error"; text: string } | null>(null);
@@ -44,16 +49,36 @@ export default function CreatorCockpitPage() {
   const fetchCockpitData = async () => {
     try {
       setLoading(true);
+      setWorkflowLoadError(false);
       const [sumData, statusData, familiesData] = await Promise.all([
         getCockpitSummary(),
         getStudioStatus(),
-        listContentFamilies().catch(() => []),
+        listContentFamilies({ limit: 50 }).catch(() => {
+          setWorkflowLoadError(true);
+          return [] as ContentFamilyItem[];
+        }),
       ]);
       setSummary(sumData);
       setStudioStatus(statusData);
       setFamilies(familiesData);
+
+      const activeFamily = familiesData.find(
+        (family) => family.status !== "COMPLETED" && family.status !== "ARCHIVED"
+      );
+      if (activeFamily) {
+        try {
+          setCurrentFamily(await getContentFamily(activeFamily.id));
+        } catch {
+          setCurrentFamily(null);
+          setWorkflowLoadError(true);
+        }
+      } else {
+        setCurrentFamily(null);
+      }
     } catch (e: any) {
       console.error("Cockpit load error:", e);
+      setCurrentFamily(null);
+      setWorkflowLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -214,6 +239,15 @@ export default function CreatorCockpitPage() {
           </button>
         </div>
       )}
+
+      <CreatorWorkflow
+        summary={summary}
+        studioStatus={studioStatus}
+        activeFamiliesCount={activeFamiliesCount}
+        currentFamily={currentFamily}
+        workflowLoadError={workflowLoadError}
+        loading={loading}
+      />
 
       {/* Decision Metrics Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
