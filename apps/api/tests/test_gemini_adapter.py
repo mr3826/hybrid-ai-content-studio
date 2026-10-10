@@ -38,7 +38,7 @@ class _Client:
 
 
 @pytest.mark.asyncio
-async def test_gemini_38_structured_request_uses_json_schema_and_tracks_usage(monkeypatch):
+async def test_gemini_38_structured_request_uses_current_json_schema_format_and_tracks_usage(monkeypatch):
     calls = []
     output = {"title": "Grounded script", "sections": []}
     response = _Response(
@@ -103,18 +103,49 @@ async def test_gemini_38_structured_request_uses_json_schema_and_tracks_usage(mo
     assert calls[0]["headers"]["x-goog-api-key"] == "test-gemini-key"
     generation = calls[0]["json"]["generationConfig"]
     assert generation["maxOutputTokens"] == 2048
-    assert generation["responseMimeType"] == "application/json"
-    assert generation["responseSchema"]["type"] == "OBJECT"
-    # The GenerateContent responseSchema uses Google's Schema message, which
-    # rejects additionalProperties; the engine enforces it locally afterward.
-    assert "additionalProperties" not in generation["responseSchema"]
-    sections = generation["responseSchema"]["properties"]["sections"]
+    assert generation["responseFormat"]["text"]["mimeType"] == "APPLICATION_JSON"
+    schema = generation["responseFormat"]["text"]["schema"]
+    assert schema["type"] == "object"
+    assert "responseSchema" not in generation
+    assert "responseMimeType" not in generation
+    assert schema["additionalProperties"] is False
+    sections = schema["properties"]["sections"]
     assert sections["minItems"] == 5
     assert sections["maxItems"] == 5
-    assert "additionalProperties" not in sections["items"]
-    assert sections["items"]["properties"]["narration"]["type"] == "STRING"
+    assert sections["items"]["additionalProperties"] is False
+    assert sections["items"]["properties"]["narration"]["type"] == "string"
     assert "temperature" not in generation
     assert "thinkingConfig" not in generation
+
+
+def test_gemini_response_schema_filters_unsupported_pydantic_keywords():
+    schema = GeminiAdapter._gemini_response_schema(
+        {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "default": "unused",
+                    "title": "Name",
+                },
+                "nested": {"type": "object", "additionalProperties": False},
+            },
+            "required": ["name"],
+            "additionalProperties": False,
+        }
+    )
+
+    assert schema == {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "title": "Name"},
+            "nested": {"type": "object", "additionalProperties": False},
+        },
+        "required": ["name"],
+        "additionalProperties": False,
+    }
 
 
 @pytest.mark.asyncio

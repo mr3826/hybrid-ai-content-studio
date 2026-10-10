@@ -4,7 +4,7 @@
 
 Live generation uses Google Gemini only. `AI_MOCK_MODE=true` routes generation to the deterministic local adapter and makes no Gemini request. Live mode sends one provider request per operation; errors are returned with a typed category and recovery guidance. There is no automatic retry or provider fallback.
 
-The default model is `gemini-3.8-flash`, configured by `GEMINI_MODEL`. Google lists this as a stable Gemini 3 Flash model and documents structured JSON output for the Generate Content API. The adapter uses the existing `generateContent` REST contract. It sends only fields supported by Gemini's `responseSchema` object; the full local JSON Schema, including additional-property restrictions, is enforced again by the engine before script validation or persistence.
+The default model is `gemini-3.8-flash`, configured by `GEMINI_MODEL`. Google lists this as a stable Gemini 3 Flash model and documents structured JSON output for the Generate Content API. The adapter uses the current `generateContent` `generationConfig.responseFormat.text.schema` contract, filters Pydantic-only keywords to the documented JSON Schema subset, and the engine enforces the full local JSON Schema before script validation or persistence.
 
 ## Credential setup
 
@@ -44,7 +44,7 @@ The smoke first performs a model availability lookup. If it succeeds, the test m
 
 ## Current acceptance status — 2026-10-10
 
-The configured model lookup returned HTTP 200, but the one authorized generation request returned HTTP 400 because Gemini's `responseSchema` rejected an `additionalProperties` field. The adapter now omits that unsupported provider-side field while retaining complete local JSON Schema validation. No second generation request has been sent, so live generation, persistence, provenance read-back, and unapproved status still need a successful acceptance smoke. See [Phase status](PHASE_STATUS.md) for the current verification record.
+The configured model lookup returned HTTP 200. The first authorized generation request returned HTTP 400 because the deprecated `responseSchema` rejected `additionalProperties`; the explicitly authorized follow-up returned HTTP 400 `INVALID_ARGUMENT`. No draft was persisted by either attempt. The adapter now uses the current `responseFormat.text.schema` payload, but that migration has not yet been exercised against the live provider. Successful generation, persistence, provenance read-back, and unapproved status still need a successful acceptance smoke. See [Phase status](PHASE_STATUS.md) for the current verification record.
 
 ## Official Google references
 

@@ -1,6 +1,5 @@
 import json
 import time
-from copy import deepcopy
 from typing import Any, Dict, Optional
 import httpx
 from app.engines.ai.adapters.base import BaseAIAdapter
@@ -74,24 +73,13 @@ class GeminiAdapter(BaseAIAdapter):
         )
 
     @staticmethod
-    def _gemini_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert the provider-neutral JSON Schema contract to Gemini Schema enums."""
-        definitions = schema.get("$defs", {}) if isinstance(schema, dict) else {}
-        type_names = {
-            "array": "ARRAY",
-            "boolean": "BOOLEAN",
-            "integer": "INTEGER",
-            "null": "NULL",
-            "number": "NUMBER",
-            "object": "OBJECT",
-            "string": "STRING",
-        }
-        # The GenerateContent ``responseSchema`` field uses Google's Schema
-        # message, which rejects JSON Schema's ``additionalProperties`` even
-        # though the engine's local validator enforces it after generation.
+    def _gemini_response_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
+        """Keep only the JSON Schema subset supported by Gemini structured output."""
         supported_keys = {
+            "additionalProperties",
             "description",
             "enum",
+            "format",
             "items",
             "maximum",
             "maxItems",
@@ -99,37 +87,22 @@ class GeminiAdapter(BaseAIAdapter):
             "minItems",
             "properties",
             "required",
+            "title",
             "type",
         }
 
-        def convert(node: Any, active_refs: frozenset[str] = frozenset()) -> Any:
-            if isinstance(node, list):
-                return [convert(item, active_refs) for item in node]
+        def convert(node: Any) -> Any:
             if not isinstance(node, dict):
                 return node
-            ref = node.get("$ref")
-            if isinstance(ref, str) and ref.startswith("#/$defs/"):
-                if ref in active_refs:
-                    return {"type": "OBJECT"}
-                definition = definitions.get(ref.removeprefix("#/$defs/"))
-                if isinstance(definition, dict):
-                    merged = deepcopy(definition)
-                    merged.update({key: value for key, value in node.items() if key != "$ref"})
-                    return convert(merged, active_refs | {ref})
             result: Dict[str, Any] = {}
             for key, value in node.items():
                 if key not in supported_keys:
                     continue
-                if key == "type":
-                    if isinstance(value, str):
-                        result[key] = type_names.get(value, value.upper())
-                    elif isinstance(value, list):
-                        result[key] = [type_names.get(item, item.upper()) for item in value]
-                elif key == "properties" and isinstance(value, dict):
-                    result[key] = {name: convert(child, active_refs) for name, child in value.items()}
-                elif key == "items" and isinstance(value, dict):
-                    result[key] = convert(value, active_refs)
-                elif key in supported_keys:
+                if key == "properties" and isinstance(value, dict):
+                    result[key] = {name: convert(child) for name, child in value.items()}
+                elif key in {"items", "additionalProperties"} and isinstance(value, dict):
+                    result[key] = convert(value)
+                else:
                     result[key] = value
             return result
 
@@ -385,8 +358,12 @@ class GeminiAdapter(BaseAIAdapter):
             "contents": [{"parts": [{"text": schema_prompt}]}],
             "generationConfig": {
                 "maxOutputTokens": request.max_tokens,
-                "responseMimeType": "application/json",
-                "responseSchema": self._gemini_schema(request.response_schema),
+                "responseFormat": {
+                    "text": {
+                        "mimeType": "APPLICATION_JSON",
+                        "schema": self._gemini_response_schema(request.response_schema),
+                    }
+                },
             },
         }
         if request.system_prompt:

@@ -27,7 +27,7 @@
 | **Phase 20** | Owned Audience Tracking | PASS | `abfc211` | 107 pytest passed, web build passed | Lead magnets, conversion snapshots, deterministic UTM builder, subscriber economics & valuation, bilingual UI |
 | **Phase 21** | Cleanup, Backup & Reliability | PASS | `69be8a9` | 114 pytest passed, web build passed | 13th engine (cleanup), reference-safe file retention, SHA-256 backup archives, sandbox restore & SQLite PRAGMA validation, bilingual UI |
 | **Phase 22** | Final E2E Certification | PASS | `ca0a5ec` | 117 pytest passed, web build passed | Complete 24-step creator journey certified, 10 invariants validated, 24 static pages verified |
-| **Phase 23** | Evidence-Grounded AI Script Studio | IN PROGRESS | — | 286 backend/engine/worker tests passed; web build and provider UI smoke passed | Gemini-only implementation is locally verified. Live acceptance remains pending: the one authorized generation request failed before the provider-schema correction, and no second request has been sent. |
+| **Phase 23** | Evidence-Grounded AI Script Studio | IN PROGRESS | — | 292 backend/engine/worker tests passed; web build and provider UI smoke passed | Gemini-only implementation is locally verified. Live acceptance remains pending: both authorized generation requests returned HTTP 400; the current responseFormat migration has not yet been exercised against the provider. |
 
 ## Latest Phase 23 Gemini-only verification — 2026-10-10
 
@@ -35,8 +35,9 @@ Phase 23 remains **IN PROGRESS** on `feat/v1-1-ai-script-generation`. Live gener
 
 ### Local verification
 
-- Guarded combined backend, engine, and worker suite: `uv run --locked pytest -p phase23_test_isolation apps/api/tests apps/api/app/engines worker/tests -q -ra` — **286 passed, 1 skipped, 10 warnings in 132.97 s**. The single skip is the opt-in live Gemini smoke. The suite used the PR #1 isolation plugin, which forces mock AI/TTS, in-memory SQLite, dummy provider credentials, and blocks unexpected provider HTTP requests.
+- Guarded combined backend, engine, and worker suite: `uv run --locked pytest -p phase23_test_isolation apps/api/tests apps/api/app/engines worker/tests -q -ra` — **292 passed, 1 skipped, 10 warnings in 99.83 s**. The single skip is the opt-in live Gemini smoke. The suite used the PR #1 isolation plugin, which forces mock AI/TTS, in-memory SQLite, dummy provider credentials, and blocks unexpected provider HTTP requests.
 - Focused Gemini adapter, routing, settings, security, and script API regressions — **43 passed, 1 skipped**. The skipped test is the same live-only smoke.
+- Focused Gemini adapter and script-generation regressions after the response format migration — **20 passed**.
 - PR #1 provider-network isolation regressions — **6 passed**, using local-only transports to verify both provider blocking and test isolation.
 - Frontend TypeScript check passed. `npm run build` passed with all **24 routes** generated.
 - Production browser `smoke:ai-provider-ui` passed with API responses intercepted. It confirmed only Gemini and Mock are selectable and reported no browser errors.
@@ -44,10 +45,11 @@ Phase 23 remains **IN PROGRESS** on `feat/v1-1-ai-script-generation`. Live gener
 
 ### Live provider attempt and limit
 
-- The configured model preflight returned **HTTP 200** and confirmed `generateContent` availability.
-- The single authorized script-generation request then returned **HTTP 400** because Gemini's `responseSchema` rejected the outgoing `additionalProperties` field. The API returned recovery guidance; no script draft was persisted.
-- The adapter now omits that unsupported provider-side field while the engine retains full local schema validation. Adapter and routing regressions pass after this correction.
-- No second live generation request has been sent. Successful real-provider generation, persistence, provenance read-back, and unapproved status therefore remain uncertified. Phase 23 cannot be marked complete until the corrected request passes the one-request live acceptance smoke.
+- The model preflight returned **HTTP 200** and confirmed `generateContent` availability.
+- The first authorized script-generation request returned **HTTP 400** because the deprecated Gemini `responseSchema` rejected `additionalProperties`; no script draft was persisted.
+- The one explicitly authorized follow-up request returned **HTTP 400 INVALID_ARGUMENT** after the adapter removed that field; the API returned recovery guidance and no draft was persisted.
+- The adapter now uses the current `generationConfig.responseFormat.text.schema` request format and filters Pydantic-only fields to the documented JSON Schema subset. The migration and strict-schema behavior pass the local adapter/security regressions and the guarded combined suite.
+- No live request has been sent after this response format migration. Successful real-provider generation, persistence, provenance read-back, and unapproved status remain uncertified. Phase 23 cannot be marked complete until the current payload passes the one-request live acceptance smoke.
 
 The previous Phase 23 reports below describe earlier OpenAI/Qwen routing revisions. They are retained as historical evidence only and do not describe the current Gemini-only implementation.
 

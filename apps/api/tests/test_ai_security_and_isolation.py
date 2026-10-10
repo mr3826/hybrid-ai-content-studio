@@ -133,13 +133,17 @@ async def test_gemini_structured_generation_sends_bounded_schema_for_38():
     assert response.structured_data == {"ok": True}
     assert captured_payload is not None
     generation_config = captured_payload["generationConfig"]
-    assert generation_config["responseMimeType"] == "application/json"
-    assert generation_config["responseSchema"]["type"] == "OBJECT"
-    assert generation_config["responseSchema"]["properties"]["sections"]["items"]["type"] == "OBJECT"
-    assert generation_config["responseSchema"]["properties"]["sections"]["minItems"] == 1
-    assert generation_config["responseSchema"]["properties"]["sections"]["maxItems"] == 1
-    assert "additionalProperties" not in generation_config["responseSchema"]
-    assert "additionalProperties" not in generation_config["responseSchema"]["properties"]["sections"]["items"]
+    assert generation_config["responseFormat"]["text"]["mimeType"] == "APPLICATION_JSON"
+    schema = generation_config["responseFormat"]["text"]["schema"]
+    assert schema["type"] == "object"
+    sections = schema["properties"]["sections"]
+    assert sections["items"]["type"] == "object"
+    assert sections["minItems"] == 1
+    assert sections["maxItems"] == 1
+    assert schema["additionalProperties"] is False
+    assert sections["items"]["additionalProperties"] is False
+    assert "responseSchema" not in generation_config
+    assert "responseMimeType" not in generation_config
     assert "thinkingConfig" not in generation_config
     assert "temperature" not in generation_config
 
